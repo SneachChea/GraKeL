@@ -15,8 +15,8 @@ from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
 
 from grakel.graph import Graph
-from grakel.utils import EPS
 from grakel.kernels._c_functions import k_to_ij_rectangular, k_to_ij_triangular
+from grakel.utils import EPS
 
 
 class Kernel(BaseEstimator, TransformerMixin):
@@ -231,13 +231,10 @@ class Kernel(BaseEstimator, TransformerMixin):
                     return k_to_ij_triangular(k, dim)
 
                 split = [
-                    iter(((i, j), (self.X[i], self.X[j])) for i, j in map(kij, range(*rg)))
-                    for rg in indexes(n_jobs, nsamples)
+                    iter(((i, j), (self.X[i], self.X[j])) for i, j in map(kij, range(*rg))) for rg in indexes(n_jobs, nsamples)
                 ]
 
-                self._parallel(
-                    joblib.delayed(assign)(s, K, self.pairwise_operation) for s in split
-                )
+                self._parallel(joblib.delayed(assign)(s, K, self.pairwise_operation) for s in split)
             K = np.triu(K) + np.triu(K, 1).T
 
         else:
@@ -253,14 +250,9 @@ class Kernel(BaseEstimator, TransformerMixin):
                 def kij(k):
                     return k_to_ij_rectangular(k, dim_X)
 
-                split = [
-                    iter(((j, i), (Y[j], self.X[i])) for i, j in map(kij, range(*rg)))
-                    for rg in indexes(n_jobs, nsamples)
-                ]
+                split = [iter(((j, i), (Y[j], self.X[i])) for i, j in map(kij, range(*rg))) for rg in indexes(n_jobs, nsamples)]
 
-                self._parallel(
-                    joblib.delayed(assign)(s, K, self.pairwise_operation) for s in split
-                )
+                self._parallel(joblib.delayed(assign)(s, K, self.pairwise_operation) for s in split)
         return K
 
     def diagonal(self):
@@ -343,9 +335,7 @@ class Kernel(BaseEstimator, TransformerMixin):
                 elif type(x) is Graph:
                     Xp.append(x)
                 else:
-                    raise TypeError(
-                        "Each element of X must have at least " + "one and at most 3 elements.\n"
-                    )
+                    raise TypeError("Each element of X must have at least " + "one and at most 3 elements.\n")
             if len(Xp) == 0:
                 raise ValueError("Parsed input is empty.")
             return Xp
@@ -354,16 +344,11 @@ class Kernel(BaseEstimator, TransformerMixin):
         """Initialize all transformer arguments, needing initialisation."""
         if not self._initialized["n_jobs"]:
             if type(self.n_jobs) is not int and self.n_jobs is not None:
-                raise ValueError(
-                    "n_jobs parameter must be an int "
-                    "indicating the number of jobs as in joblib or None"
-                )
+                raise ValueError("n_jobs parameter must be an int " "indicating the number of jobs as in joblib or None")
             elif self.n_jobs is None:
                 self._parallel = None
             else:
-                self._parallel = joblib.Parallel(
-                    n_jobs=self.n_jobs, backend="threading", pre_dispatch="all"
-                )
+                self._parallel = joblib.Parallel(n_jobs=self.n_jobs, backend="threading", pre_dispatch="all")
                 self._n_jobs = self._parallel._effective_n_jobs()
             self._initialized["n_jobs"] = True
 

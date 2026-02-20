@@ -2,26 +2,20 @@
 
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
+from collections import Counter
 from warnings import warn
 
-from collections import Counter
-
-from sklearn.exceptions import NotFittedError
-from sklearn.utils.validation import check_is_fitted
-
-from grakel.kernels import Kernel
-from grakel.graph import Graph
-
-from numpy import zeros
-from numpy import einsum
-from numpy import array
-from numpy import squeeze
+from numpy import array, einsum, squeeze, zeros
 from scipy.sparse import csr_matrix
 
 # Python 2/3 cross-compatibility import
-from six import iteritems
-from six import itervalues
+from six import iteritems, itervalues
 from six.moves.collections_abc import Iterable
+from sklearn.exceptions import NotFittedError
+from sklearn.utils.validation import check_is_fitted
+
+from grakel.graph import Graph
+from grakel.kernels import Kernel
 
 
 class VertexHistogram(Kernel):

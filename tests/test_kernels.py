@@ -1,45 +1,43 @@
 """Tests for the kernel sub-module."""
+
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
 import os
 import sys
-import numpy as np
-
 from time import time
 from warnings import warn
 
+import numpy as np
+import pytest
 from numpy.testing import assert_array_less
-
 from sklearn.model_selection import train_test_split
 
-from grakel.datasets import fetch_dataset
-from grakel.datasets import get_dataset_info
+from grakel.datasets import fetch_dataset, get_dataset_info
 from grakel.datasets.base import read_data
-
-from grakel.kernels import GraphletSampling
-from grakel.kernels import RandomWalk
-from grakel.kernels import RandomWalkLabeled
-from grakel.kernels import ShortestPath
-from grakel.kernels import ShortestPathAttr
-from grakel.kernels import WeisfeilerLehman
-from grakel.kernels import WeisfeilerLehmanOptimalAssignment
-from grakel.kernels import NeighborhoodHash
-from grakel.kernels import PyramidMatch
-from grakel.kernels import SubgraphMatching
-from grakel.kernels import NeighborhoodSubgraphPairwiseDistance
-from grakel.kernels import LovaszTheta
-from grakel.kernels import SvmTheta
-from grakel.kernels import OddSth
-from grakel.kernels import Propagation
-from grakel.kernels import PropagationAttr
-from grakel.kernels import HadamardCode
-from grakel.kernels import MultiscaleLaplacian
-from grakel.kernels import VertexHistogram
-from grakel.kernels import EdgeHistogram
-from grakel.kernels import GraphHopper
-from grakel.kernels import CoreFramework
-
-import pytest
+from grakel.kernels import (
+    CoreFramework,
+    EdgeHistogram,
+    GraphHopper,
+    GraphletSampling,
+    HadamardCode,
+    LovaszTheta,
+    MultiscaleLaplacian,
+    NeighborhoodHash,
+    NeighborhoodSubgraphPairwiseDistance,
+    OddSth,
+    Propagation,
+    PropagationAttr,
+    PyramidMatch,
+    RandomWalk,
+    RandomWalkLabeled,
+    ShortestPath,
+    ShortestPathAttr,
+    SubgraphMatching,
+    SvmTheta,
+    VertexHistogram,
+    WeisfeilerLehman,
+    WeisfeilerLehmanOptimalAssignment,
+)
 
 is_windows = sys.platform.lower().startswith("win")
 
@@ -57,62 +55,30 @@ except ImportError:
     cvxopt = False
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
+
     # Create an argument parser for the installer of pynauty
-    parser = argparse.ArgumentParser(description='A test file for all kernels')
+    parser = argparse.ArgumentParser(description="A test file for all kernels")
+
+    parser.add_argument("--verbose", help="print kernels with their outputs on stdout", action="store_true")
+    parser.add_argument("--problematic", help="allow execution of problematic test cases in development", action="store_true")
+    parser.add_argument("--slow", help="allow execution of slow test cases in development", action="store_true")
+    parser.add_argument("--ignore_warnings", help="ignore warnings produced by kernel executions", action="store_true")
+
+    parser.add_argument("--time", help="time the kernel computation (has effect only on verbose)", action="store_true")
+    parser.add_argument("--dataset", help="choose the dataset for tests requiring node/edge labels", type=str, default="MUTAG")
 
     parser.add_argument(
-        '--verbose',
-        help='print kernels with their outputs on stdout',
-        action="store_true")
-    parser.add_argument(
-        '--problematic',
-        help='allow execution of problematic test cases in development',
-        action="store_true")
-    parser.add_argument(
-        '--slow',
-        help='allow execution of slow test cases in development',
-        action="store_true")
-    parser.add_argument(
-        '--ignore_warnings',
-        help='ignore warnings produced by kernel executions',
-        action="store_true")
-
-    parser.add_argument(
-        '--time',
-        help='time the kernel computation (has effect only on verbose)',
-        action="store_true")
-    parser.add_argument(
-        '--dataset',
-        help='choose the dataset for tests requiring node/edge labels',
-        type=str,
-        default="MUTAG"
+        "--dataset_attr", help="choose the dataset for tests requiring node attributes", type=str, default="Cuneiform"
     )
 
-    parser.add_argument(
-        '--dataset_attr',
-        help='choose the dataset for tests requiring node attributes',
-        type=str,
-        default="Cuneiform"
-    )
-
-    parser.add_argument('--normalize', help='normalize the kernel output',
-                        action="store_true")
+    parser.add_argument("--normalize", help="normalize the kernel output", action="store_true")
 
     meg = parser.add_mutually_exclusive_group()
-    meg.add_argument(
-        '--develop',
-        help='execute only tests connected with current development',
-        action="store_true")
-    meg.add_argument(
-        '--all',
-        help='execute all tests',
-        action="store_true")
-    meg.add_argument(
-        '--main',
-        help='execute the main tests [default]',
-        action="store_true")
+    meg.add_argument("--develop", help="execute only tests connected with current development", action="store_true")
+    meg.add_argument("--all", help="execute all tests", action="store_true")
+    meg.add_argument("--main", help="execute the main tests [default]", action="store_true")
 
     args = parser.parse_args()
 
@@ -128,7 +94,8 @@ if __name__ == '__main__':
 
     if bool(args.ignore_warnings):
         import warnings
-        warnings.filterwarnings('ignore', category=UserWarning)
+
+        warnings.filterwarnings("ignore", category=UserWarning)
 
     normalize = bool(args.normalize)
     time_kernel = bool(args.time)
@@ -137,7 +104,8 @@ if __name__ == '__main__':
 
 else:
     import warnings
-    warnings.filterwarnings('ignore', category=UserWarning)
+
+    warnings.filterwarnings("ignore", category=UserWarning)
     main, develop, problematic, slow = True, False, False, False
     normalize, verbose, time_kernel = False, False, False
     dataset_name = "MUTAG"
@@ -146,16 +114,16 @@ else:
 # consistency check for the dataset
 dinfo = get_dataset_info(dataset_name)
 if dinfo is None:
-    raise TypeError('dataset not found')
+    raise TypeError("dataset not found")
 elif not dinfo["nl"] and not dinfo["el"]:
-    raise TypeError('dataset must have either node and edge labels')
+    raise TypeError("dataset must have either node and edge labels")
 
 # consistency check for the attribute dataset
 dinfo_attr = get_dataset_info(dataset_attr_name)
 if dinfo is None:
-    raise TypeError('dataset for attributes not found')
+    raise TypeError("dataset for attributes not found")
 elif not dinfo_attr["nl"] and not dinfo_attr["el"]:
-    raise TypeError('dataset must have node attributes')
+    raise TypeError("dataset must have node attributes")
 
 
 # The baseline dataset for node, edge_labels
@@ -165,42 +133,36 @@ try:
     dataset = fetch_dataset(dataset_name, with_classes=False, verbose=verbose).data
 except Exception:
     # Offline testing
-    warn('There was a problem fetching dataset for attributes: [' + dataset_name + ']')
-    if dataset_name != 'MUTAG':
-        warn('Switching back to baseline dataset MUTAG')
-    warn('Using an offline version..')
+    warn("There was a problem fetching dataset for attributes: [" + dataset_name + "]")
+    if dataset_name != "MUTAG":
+        warn("Switching back to baseline dataset MUTAG")
+    warn("Using an offline version..")
     cwd = os.getcwd()
-    os.chdir(os.path.join(fdir, 'data'))
-    dataset = read_data('MUTAG', with_classes=False).data
+    os.chdir(os.path.join(fdir, "data"))
+    dataset = read_data("MUTAG", with_classes=False).data
     os.chdir(cwd)
 
-dataset_tr, dataset_te = train_test_split(dataset,
-                                          test_size=0.2,
-                                          random_state=42)
+dataset_tr, dataset_te = train_test_split(dataset, test_size=0.2, random_state=42)
 
 # The baseline dataset for node/edge-attributes
 global dataset_attr, dataset_attr_tr, dataset_attr_te
 
 try:
-    dataset_attr = fetch_dataset(dataset_attr_name, with_classes=False,
-                                 prefer_attr_nodes=True,
-                                 prefer_attr_edges=True,
-                                 verbose=verbose).data
+    dataset_attr = fetch_dataset(
+        dataset_attr_name, with_classes=False, prefer_attr_nodes=True, prefer_attr_edges=True, verbose=verbose
+    ).data
 except Exception:
     # Offline testing
-    warn('There was a problem fetching dataset for attributes: [' + dataset_attr_name + ']')
-    if dataset_attr_name != 'Cuneiform':
-        warn('Switching back to baseline dataset Cuneiform')
-    warn('Using an offline version..')
+    warn("There was a problem fetching dataset for attributes: [" + dataset_attr_name + "]")
+    if dataset_attr_name != "Cuneiform":
+        warn("Switching back to baseline dataset Cuneiform")
+    warn("Using an offline version..")
     cwd = os.getcwd()
-    os.chdir(os.path.join(fdir, 'data'))
-    dataset_attr = read_data('Cuneiform', with_classes=False, prefer_attr_nodes=True,
-                             prefer_attr_edges=True).data
+    os.chdir(os.path.join(fdir, "data"))
+    dataset_attr = read_data("Cuneiform", with_classes=False, prefer_attr_nodes=True, prefer_attr_edges=True).data
     os.chdir(cwd)
 
-dataset_attr_tr, dataset_attr_te = train_test_split(dataset_attr,
-                                                    test_size=0.2,
-                                                    random_state=42)
+dataset_attr_tr, dataset_attr_te = train_test_split(dataset_attr, test_size=0.2, random_state=42)
 
 
 def test_random_walk():
@@ -244,8 +206,7 @@ def test_graphlet_sampling():
 
 def test_weisfeiler_lehman():
     """Eigenvalue test for the Weisfeiler Lehman kernel."""
-    wl_st_kernel = WeisfeilerLehman(verbose=verbose, normalize=normalize,
-                                    base_graph_kernel=VertexHistogram)
+    wl_st_kernel = WeisfeilerLehman(verbose=verbose, normalize=normalize, base_graph_kernel=VertexHistogram)
     if verbose:
         print_kernel("WL/Subtree", wl_st_kernel, dataset_tr, dataset_te)
     else:
@@ -254,8 +215,7 @@ def test_weisfeiler_lehman():
 
 def test_weisfeiler_lehman_optimal_assignment():
     """Eigenvalue test for the Weisfeiler Lehman Optimal Assignment kernel."""
-    wl_oa_kernel = WeisfeilerLehmanOptimalAssignment(
-        verbose=verbose, normalize=normalize)
+    wl_oa_kernel = WeisfeilerLehmanOptimalAssignment(verbose=verbose, normalize=normalize)
     if verbose:
         print_kernel("WL-OA", wl_oa_kernel, dataset_tr, dataset_te)
     else:
@@ -291,8 +251,7 @@ def test_subgraph_matching():
 
 def test_neighborhood_subgraph_pairwise_distance():
     """Eigenvalue test for the neighborhood subgraph pairwise distance kernel."""
-    nspd_kernel = NeighborhoodSubgraphPairwiseDistance(
-        verbose=verbose, normalize=normalize)
+    nspd_kernel = NeighborhoodSubgraphPairwiseDistance(verbose=verbose, normalize=normalize)
     if verbose:
         print_kernel("NSPD", nspd_kernel, dataset_tr, dataset_te)
     else:
@@ -301,10 +260,7 @@ def test_neighborhood_subgraph_pairwise_distance():
 
 if cvxopt:
 
-    @pytest.mark.xfail(
-        condition=is_windows,
-        reason="See https://github.com/ysig/GraKeL/pull/83#issuecomment-1267069069"
-    )
+    @pytest.mark.xfail(condition=is_windows, reason="See https://github.com/ysig/GraKeL/pull/83#issuecomment-1267069069")
     def test_lovasz_theta():
         """Eigenvalue test for the Lovasz-theta distance kernel."""
         lt_kernel = LovaszTheta(verbose=verbose, normalize=normalize)
@@ -350,11 +306,9 @@ def test_propagation():
 
 def test_hadamard_code():
     """Eigenvalue test for the Hadamard Code kernel."""
-    hadamard_code_kernel = HadamardCode(verbose=verbose, normalize=normalize,
-                                        base_graph_kernel=VertexHistogram)
+    hadamard_code_kernel = HadamardCode(verbose=verbose, normalize=normalize, base_graph_kernel=VertexHistogram)
     if verbose:
-        print_kernel("Hadamard-Code/VH [Simple]",
-                     hadamard_code_kernel, dataset_tr, dataset_te)
+        print_kernel("Hadamard-Code/VH [Simple]", hadamard_code_kernel, dataset_tr, dataset_te)
     else:
         positive_eig(hadamard_code_kernel, dataset)
 
@@ -363,8 +317,7 @@ def test_multiscale_laplacian():
     """Eigenvalue test for the Multiscale Laplacian kernel."""
     mlf_kernel = MultiscaleLaplacian(verbose=verbose, normalize=normalize)
     if verbose:
-        print_kernel("Multiscale Laplacian", mlf_kernel,
-                     dataset_attr_tr, dataset_attr_te)
+        print_kernel("Multiscale Laplacian", mlf_kernel, dataset_attr_tr, dataset_attr_te)
     else:
         positive_eig(mlf_kernel, dataset_attr)
 
@@ -426,9 +379,8 @@ def print_kernel(name, kernel, X, Y):
         t_time = time() - start
         print(Kt)
         print("[TIME] transform:", sec_to_time(t_time))
-        print("[TIME] total:", sec_to_time(ft_time+t_time))
-        print("--------------------------------------" +
-              "--------------------------------------\n")
+        print("[TIME] total:", sec_to_time(ft_time + t_time))
+        print("--------------------------------------" + "--------------------------------------\n")
     else:
         print(str(name) + ":\n" + (len(str(name)) * "-") + "-\n")
         print("fit_transform\n-------------")
@@ -436,8 +388,7 @@ def print_kernel(name, kernel, X, Y):
 
         print("\ntransform\n---------")
         print(kernel.transform(Y))
-        print("--------------------------------------" +
-              "--------------------------------------\n")
+        print("--------------------------------------" + "--------------------------------------\n")
 
 
 def sec_to_time(sec):
@@ -445,17 +396,17 @@ def sec_to_time(sec):
     dt = list()
     days = int(sec // 86400)
     if days > 0:
-        sec -= 86400*days
+        sec -= 86400 * days
         dt.append(str(days) + " d")
 
     hrs = int(sec // 3600)
     if hrs > 0:
-        sec -= 3600*hrs
+        sec -= 3600 * hrs
         dt.append(str(hrs) + " h")
 
     mins = int(sec // 60)
     if mins > 0:
-        sec -= 60*mins
+        sec -= 60 * mins
         dt.append(str(mins) + " m")
 
     if sec > 0:

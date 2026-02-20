@@ -1,18 +1,19 @@
 """Shortest path kernel as defined in :cite:`borgwardt2005shortest`."""
+
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
 import warnings
 
 import numpy as np
 
+# For python2/3 compatibility
+from six.moves.collections_abc import Iterable
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
 
 from grakel.graph import Graph
 from grakel.kernels import Kernel
 
-# For python2/3 compatibility
-from six.moves.collections_abc import Iterable
 
 class ShortestPathAttr(Kernel):
     r"""The shortest path kernel for attributes.
@@ -41,14 +42,9 @@ class ShortestPathAttr(Kernel):
 
     """
 
-    def __init__(self, n_jobs=None,
-                 normalize=False,
-                 verbose=False,
-                 algorithm_type="auto",
-                 metric=np.dot):
+    def __init__(self, n_jobs=None, normalize=False, verbose=False, algorithm_type="auto", metric=np.dot):
         """Initialise a `shortest_path_attr` kernel."""
-        super(ShortestPathAttr, self).__init__(
-            n_jobs=n_jobs, normalize=normalize, verbose=verbose)
+        super(ShortestPathAttr, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
 
         self.algorithm_type = algorithm_type
         self.metric = metric
@@ -65,9 +61,7 @@ class ShortestPathAttr(Kernel):
             elif self.algorithm_type == "dijkstra":
                 self._graph_format = "dictionary"
             else:
-                raise ValueError('Unsupported value ' +
-                                 str(self.algorithm_type) +
-                                 ' for "algorithm_type"')
+                raise ValueError("Unsupported value " + str(self.algorithm_type) + ' for "algorithm_type"')
             self._initialized["algorithm_type"] = True
 
         if not self._initialized["metric"]:
@@ -95,36 +89,34 @@ class ShortestPathAttr(Kernel):
 
         """
         if not isinstance(X, Iterable):
-            raise TypeError('input must be an iterable\n')
+            raise TypeError("input must be an iterable\n")
         else:
             sp_attr_tup = list()
             ni = 0
-            for (i, x) in enumerate(iter(X)):
+            for i, x in enumerate(iter(X)):
                 is_iter = isinstance(x, Iterable)
                 if is_iter:
                     x = list(x)
                 if is_iter and len(x) in [0, 2, 3]:
                     if len(x) == 0:
-                        warnings.warn('Ignoring empty element' +
-                                      ' on index: '+str(i))
+                        warnings.warn("Ignoring empty element" + " on index: " + str(i))
                         continue
                     else:
-                        S, L = Graph(
-                            x[0], x[1], {},
-                            self._graph_format).build_shortest_path_matrix(
-                                self.algorithm_type)
+                        S, L = Graph(x[0], x[1], {}, self._graph_format).build_shortest_path_matrix(self.algorithm_type)
                 elif type(x) is Graph:
                     S, L = x.build_shortest_path_matrix(self.algorithm_type)
                 else:
-                    raise TypeError('each element of X must be either a ' +
-                                    'graph or an iterable with at least 2 ' +
-                                    'and at most 3 elements\n')
+                    raise TypeError(
+                        "each element of X must be either a "
+                        + "graph or an iterable with at least 2 "
+                        + "and at most 3 elements\n"
+                    )
 
                 sp_attr_tup.append((S, L))
                 ni += 1
 
             if ni == 0:
-                raise ValueError('parsed input is empty')
+                raise ValueError("parsed input is empty")
 
             return sp_attr_tup
 
@@ -157,10 +149,8 @@ class ShortestPathAttr(Kernel):
                     for m in range(dimy):
                         if k == m:
                             continue
-                        if (Sx[i, j] == Sy[k, m] and
-                                Sx[i, j] != float('Inf')):
-                            kernel += self.metric(phi_x[i], phi_y[k]) *\
-                                self.metric(phi_x[j], phi_y[m])
+                        if Sx[i, j] == Sy[k, m] and Sx[i, j] != float("Inf"):
+                            kernel += self.metric(phi_x[i], phi_y[k]) * self.metric(phi_x[j], phi_y[m])
 
         return kernel
 
@@ -222,14 +212,9 @@ class ShortestPath(Kernel):
 
     _graph_bins = dict()
 
-    def __init__(self, n_jobs=None,
-                 normalize=False,
-                 verbose=False,
-                 with_labels=True,
-                 algorithm_type="auto"):
+    def __init__(self, n_jobs=None, normalize=False, verbose=False, with_labels=True, algorithm_type="auto"):
         """Initialize a `shortest_path` kernel."""
-        super(ShortestPath, self).__init__(
-            n_jobs=n_jobs, normalize=normalize, verbose=verbose)
+        super(ShortestPath, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
 
         self.with_labels = with_labels
         self.algorithm_type = algorithm_type
@@ -239,7 +224,7 @@ class ShortestPath(Kernel):
         """Initialize all transformer arguments, needing initialization."""
         if not self._initialized["n_jobs"]:
             if self.n_jobs is not None:
-                warnings.warn('no implemented parallelization for ShortestPath')
+                warnings.warn("no implemented parallelization for ShortestPath")
             self._initialized["n_jobs"] = True
 
         if not self._initialized["algorithm_type"]:
@@ -284,17 +269,17 @@ class ShortestPath(Kernel):
         """
         self._method_calling = 3
         # Check is fit had been called
-        check_is_fitted(self, ['X', '_nx', '_enum'])
+        check_is_fitted(self, ["X", "_nx", "_enum"])
 
         # Input validation and parsing
         if X is None:
-            raise ValueError('transform input cannot be None')
+            raise ValueError("transform input cannot be None")
         else:
             Y = self.parse_input(X)
 
         # Transform - calculate kernel matrix
         try:
-            check_is_fitted(self, ['_phi_X'])
+            check_is_fitted(self, ["_phi_X"])
             phi_x = self._phi_X
         except NotFittedError:
             phi_x = np.zeros(shape=(self._nx, len(self._enum)))
@@ -310,7 +295,7 @@ class ShortestPath(Kernel):
 
         # store _phi_Y for independent (of normalization arg diagonal-calls)
         self._phi_Y = phi_y
-        km = np.dot(phi_y[:, :len(self._enum)], phi_x.T)
+        km = np.dot(phi_y[:, : len(self._enum)], phi_x.T)
         self._is_transformed = True
         if self.normalize:
             X_diag, Y_diag = self.diagonal()
@@ -341,9 +326,9 @@ class ShortestPath(Kernel):
         """
         # Check is fit and transform had been called
         try:
-            check_is_fitted(self, ['_phi_X'])
+            check_is_fitted(self, ["_phi_X"])
         except NotFittedError:
-            check_is_fitted(self, ['X'])
+            check_is_fitted(self, ["X"])
             # calculate feature matrices.
             phi_x = np.zeros(shape=(self._nx, len(self._enum)))
 
@@ -354,14 +339,14 @@ class ShortestPath(Kernel):
             self._phi_X = phi_x
 
         try:
-            check_is_fitted(self, ['X_diag'])
+            check_is_fitted(self, ["X_diag"])
         except NotFittedError:
             # Calculate diagonal of X
             self._X_diag = np.sum(np.square(self._phi_X), axis=1)
             self._X_diag = np.reshape(self._X_diag, (self._X_diag.shape[0], 1))
 
         try:
-            check_is_fitted(self, ['_phi_Y'])
+            check_is_fitted(self, ["_phi_Y"])
             # Calculate diagonal of Y
             Y_diag = np.sum(np.square(self._phi_Y), axis=1)
             return self._X_diag, Y_diag
@@ -431,7 +416,7 @@ class ShortestPath(Kernel):
 
         """
         if not isinstance(X, Iterable):
-            raise TypeError('input must be an iterable\n')
+            raise TypeError("input must be an iterable\n")
             # Not a dictionary
         else:
             i = -1
@@ -440,30 +425,26 @@ class ShortestPath(Kernel):
                 self._enum = dict()
             elif self._method_calling == 3:
                 self._Y_enum = dict()
-            for (idx, x) in enumerate(iter(X)):
+            for idx, x in enumerate(iter(X)):
                 is_iter = isinstance(x, Iterable)
                 if is_iter:
                     x = list(x)
-                if is_iter and (len(x) == 0 or
-                                (len(x) == 1 and not self.with_labels) or
-                                len(x) in [2, 3]):
+                if is_iter and (len(x) == 0 or (len(x) == 1 and not self.with_labels) or len(x) in [2, 3]):
                     if len(x) == 0:
-                        warnings.warn('Ignoring empty element on index: '
-                                      + str(idx))
+                        warnings.warn("Ignoring empty element on index: " + str(idx))
                         continue
                     elif len(x) == 1:
-                        spm_data = Graph(x[0], {}, {}, self._graph_format
-                                         ).build_shortest_path_matrix(self.algorithm_type,
-                                                                      labels=self._lt)
+                        spm_data = Graph(x[0], {}, {}, self._graph_format).build_shortest_path_matrix(
+                            self.algorithm_type, labels=self._lt
+                        )
                     else:
-                        spm_data = Graph(x[0], x[1], {}, self._graph_format
-                                         ).build_shortest_path_matrix(self.algorithm_type,
-                                                                      labels=self._lt)
+                        spm_data = Graph(x[0], x[1], {}, self._graph_format).build_shortest_path_matrix(
+                            self.algorithm_type, labels=self._lt
+                        )
                 elif type(x) is Graph:
                     spm_data = x.build_shortest_path_matrix(self.algorithm_type, labels=self._lt)
                 else:
-                    raise TypeError('each element of X must have at least' +
-                                    ' one and at most 3 elements\n')
+                    raise TypeError("each element of X must have at least" + " one and at most 3 elements\n")
                 i += 1
 
                 S, L = self._decompose_input(spm_data)
@@ -491,12 +472,12 @@ class ShortestPath(Kernel):
                             sp_counts[i][idx] = 1
 
             if i == -1:
-                raise ValueError('parsed input is empty')
+                raise ValueError("parsed input is empty")
 
             if self._method_calling == 1:
-                self._nx = i+1
+                self._nx = i + 1
             elif self._method_calling == 3:
-                self._ny = i+1
+                self._ny = i + 1
             return sp_counts
 
 

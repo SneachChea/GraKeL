@@ -1,10 +1,12 @@
 from collections import Counter
-from sklearn.utils.validation import check_is_fitted
-from grakel import Kernel, Graph
-from numpy import zeros, einsum
+
+from numpy import einsum, zeros
 
 # For python2/3 compatibility
 from six.moves.collections_abc import Iterable
+from sklearn.utils.validation import check_is_fitted
+
+from grakel import Graph, Kernel
 
 
 class VertexHistogram(Kernel):
@@ -23,14 +25,15 @@ class VertexHistogram(Kernel):
     # Define the graph format that this kernel needs (if needed)
     # _graph_format = "auto" (default: "auto")
 
-    def __init__(self,
-                 n_jobs=n_jobs,
-                 verbose=False,
-                 normalize=False,
-                 # kernel_param_1=kernel_param_1_default,
-                 # ...
-                 # kernel_param_n=kernel_param_n_default,
-                 ):
+    def __init__(
+        self,
+        n_jobs=n_jobs,
+        verbose=False,
+        normalize=False,
+        # kernel_param_1=kernel_param_1_default,
+        # ...
+        # kernel_param_n=kernel_param_n_default,
+    ):
         """Initialise an `odd_sth` kernel."""
 
         # Add new parameters
@@ -54,7 +57,7 @@ class VertexHistogram(Kernel):
             # n_jobs is not used in this kernel
             # numpy utilises low-level parallelization for calculating matrix operations
             if self.n_jobs is not None:
-                warnings.warn('no implemented parallelization for VertexHistogram')
+                warnings.warn("no implemented parallelization for VertexHistogram")
             self.initialized_["n_jobs"] = True
 
         # for i=1 .. m
@@ -62,7 +65,6 @@ class VertexHistogram(Kernel):
         #         # Apply checks (raise ValueError or TypeError accordingly)
         #         # calculate derived fields stored on self._derived_field_ia .. z
         #         self.initialized_["param_needing_initialization_i"] = True
-
 
     def parse_input(self, X):
         """Parse and check the given input for vertex kernel.
@@ -84,7 +86,7 @@ class VertexHistogram(Kernel):
 
         """
         if not isinstance(X, Iterable):
-            raise TypeError('input must be an iterable\n')
+            raise TypeError("input must be an iterable\n")
         else:
             rows, cols, data = list(), list(), list()
             if self._method_calling in [1, 2]:
@@ -93,14 +95,13 @@ class VertexHistogram(Kernel):
             elif self._method_calling == 3:
                 labels = dict(self._labels)
             ni = 0
-            for (i, x) in enumerate(iter(X)):
+            for i, x in enumerate(iter(X)):
                 is_iter = isinstance(x, Iterable)
                 if is_iter:
                     x = list(x)
                 if is_iter and len(x) in [0, 2, 3]:
                     if len(x) == 0:
-                        warnings.warn('Ignoring empty element' +
-                                      ' on index: '+str(i))
+                        warnings.warn("Ignoring empty element" + " on index: " + str(i))
                         continue
                     else:
                         # Our element is an iterable of at least 2 elements
@@ -109,13 +110,15 @@ class VertexHistogram(Kernel):
                     # get labels in any existing format
                     L = x.get_labels(purpose="any")
                 else:
-                    raise TypeError('each element of X must be either a ' +
-                                     'graph object or a list with at least ' +
-                                     'a graph like object and node labels ' +
-                                     'dict \n')
+                    raise TypeError(
+                        "each element of X must be either a "
+                        + "graph object or a list with at least "
+                        + "a graph like object and node labels "
+                        + "dict \n"
+                    )
 
                 # construct the data input for the numpy array
-                for (label, frequency) in Counter(L.values()).items():
+                for label, frequency in Counter(L.values()).items():
                     # for the row that corresponds to that graph
                     rows.append(ni)
 
@@ -138,7 +141,7 @@ class VertexHistogram(Kernel):
             features[rows, cols] = data
 
             if ni == 0:
-                raise ValueError('parsed input is empty')
+                raise ValueError("parsed input is empty")
             return features
 
     def _calculate_kernel_matrix(self, Y=None):
@@ -164,7 +167,7 @@ class VertexHistogram(Kernel):
         if Y is None:
             K = self.X.dot(self.X.T)
         else:
-            K = Y[:, :self.X.shape[1]].dot(self.X.T)
+            K = Y[:, : self.X.shape[1]].dot(self.X.T)
         return K
 
     def diagonal(self):
@@ -183,14 +186,13 @@ class VertexHistogram(Kernel):
 
         """
         # Check is fit had been called
-        check_is_fitted(self, ['X', '_Y'])
+        check_is_fitted(self, ["X", "_Y"])
         try:
-            check_is_fitted(self, ['_X_diag'])
+            check_is_fitted(self, ["_X_diag"])
         except NotFittedError:
             # Calculate diagonal of X
-            self._X_diag = einsum('ij,ij->i', self.X, self.X)
+            self._X_diag = einsum("ij,ij->i", self.X, self.X)
 
-
-        Y_diag = einsum('ij,ij->i', self._Y, self._Y)
+        Y_diag = einsum("ij,ij->i", self._Y, self._Y)
 
         return self._X_diag, Y_diag

@@ -4,17 +4,18 @@ Retrieval of most similar document using the Weisfeiler-Lehman subtree kernel.
 ==============================================================================
 Script makes use of :class:`grakel.WeisfeilerLehman`, :class:`grakel.VertexHistogram`
 """
+
 from __future__ import print_function
+
 print(__doc__)
 
-import numpy as np
 import time
 
-from nltk import word_tokenize
+import numpy as np
 from nltk.corpus import sentence_polarity
 
-from grakel.kernels import WeisfeilerLehman, VertexHistogram
 from grakel import Graph
+from grakel.kernels import VertexHistogram, WeisfeilerLehman
 
 sents = sentence_polarity.sents()
 sents = [sent for sent in sents if len(sent) > 1]
@@ -25,17 +26,16 @@ print("Loaded %d sentences\n" % n_sents)
 print("Creating word co-occurrence networks\n")
 word_networks = list()
 for sent in sents:
-
     node_labels = dict()
     tokens_to_ids = dict()
     for token in sent:
         if token not in tokens_to_ids:
             tokens_to_ids[token] = len(tokens_to_ids)
             node_labels[tokens_to_ids[token]] = token
-     
+
     edges = list()
-    for i in range(len(sent)-1):
-        edges.append((tokens_to_ids[sent[i]], tokens_to_ids[sent[i+1]]))
+    for i in range(len(sent) - 1):
+        edges.append((tokens_to_ids[sent[i]], tokens_to_ids[sent[i + 1]]))
 
     word_networks.append(Graph(edges, node_labels=node_labels))
 
@@ -57,4 +57,4 @@ print(" ".join(sents[query_sent_id]))
 print()
 print("Most similar sentence")
 print("---------------------")
-print(" ".join(sents[np.argsort(K[:,0])[-2]]))
+print(" ".join(sents[np.argsort(K[:, 0])[-2]]))

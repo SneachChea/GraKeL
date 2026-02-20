@@ -240,9 +240,7 @@ def test_graphlet_sampling():
     )
 
     gs_kernel = GraphletSampling(verbose=verbose, normalize=normalize, sampling=dict(n_samples=50))
-    gk = GraphKernel(
-        kernel={"name": "GR", "sampling": {"n_samples": 50}}, verbose=verbose, normalize=normalize
-    )
+    gk = GraphKernel(kernel={"name": "GR", "sampling": {"n_samples": 50}}, verbose=verbose, normalize=normalize)
 
     try:
         gs_kernel.fit_transform(train)
@@ -266,9 +264,7 @@ def test_weisfeiler_lehman():
         features=("nl", 3),
     )
 
-    wl_st_kernel = WeisfeilerLehman(
-        verbose=verbose, normalize=normalize, base_graph_kernel=VertexHistogram
-    )
+    wl_st_kernel = WeisfeilerLehman(verbose=verbose, normalize=normalize, base_graph_kernel=VertexHistogram)
 
     try:
         wl_st_kernel.fit_transform(train)
@@ -360,9 +356,7 @@ def test_pyramid_match_no_labels():
     )
 
     pm_kernel = PyramidMatch(verbose=verbose, normalize=normalize, with_labels=False)
-    gk = GraphKernel(
-        kernel={"name": "PM", "with_labels": False}, verbose=verbose, normalize=normalize
-    )
+    gk = GraphKernel(kernel={"name": "PM", "with_labels": False}, verbose=verbose, normalize=normalize)
 
     try:
         pm_kernel.fit_transform(train)
@@ -534,9 +528,7 @@ def test_subgraph_matching_pd():
         features=("nl", 3, "ea", 5),
     )
 
-    gk = GraphKernel(
-        kernel={"name": "SM", "ke": np.dot}, verbose=verbose, normalize=normalize, n_jobs=-1
-    )
+    gk = GraphKernel(kernel={"name": "SM", "ke": np.dot}, verbose=verbose, normalize=normalize, n_jobs=-1)
 
     try:
         gk.fit_transform(train)
@@ -556,9 +548,7 @@ def test_subgraph_matching_pd():
         features=("na", 4, "el", 3),
     )
 
-    gk = GraphKernel(
-        kernel={"name": "SM", "kv": np.dot}, verbose=verbose, normalize=normalize, n_jobs=-1
-    )
+    gk = GraphKernel(kernel={"name": "SM", "kv": np.dot}, verbose=verbose, normalize=normalize, n_jobs=-1)
 
     try:
         gk.fit_transform(train)
@@ -839,9 +829,7 @@ def test_hadamard_code():
         features=("nl", 5),
     )
 
-    hadamard_code_kernel = HadamardCode(
-        verbose=verbose, normalize=normalize, base_graph_kernel=VertexHistogram
-    )
+    hadamard_code_kernel = HadamardCode(verbose=verbose, normalize=normalize, base_graph_kernel=VertexHistogram)
 
     try:
         hadamard_code_kernel.fit_transform(train)
@@ -1026,9 +1014,7 @@ def test_core_framework():
     )
 
     base_graph_kernel = (WeisfeilerLehman, dict(base_graph_kernel=VertexHistogram))
-    core_framework = CoreFramework(
-        verbose=verbose, normalize=normalize, base_graph_kernel=base_graph_kernel
-    )
+    core_framework = CoreFramework(verbose=verbose, normalize=normalize, base_graph_kernel=base_graph_kernel)
 
     kernel = ["CORE", "WL"]
     gk = GraphKernel(kernel=kernel, verbose=verbose, normalize=normalize)

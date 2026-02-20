@@ -1,9 +1,10 @@
-from warnings import warn
 from collections import Counter
-from grakel import Kernel, Graph
+from warnings import warn
 
 # For python2/3 compatibility
 from six.moves.collections_abc import Iterable
+
+from grakel import Graph, Kernel
 
 
 class VertexHistogram(Kernel):
@@ -22,14 +23,15 @@ class VertexHistogram(Kernel):
     # Define the graph format that this kernel needs (if needed)
     # _graph_format = "auto" (default: "auto")
 
-    def __init__(self,
-                 n_jobs=n_jobs,
-                 verbose=False,
-                 normalize=False,
-                 # kernel_param_1=kernel_param_1_default,
-                 # ...
-                 # kernel_param_n=kernel_param_n_default,
-                 ):
+    def __init__(
+        self,
+        n_jobs=n_jobs,
+        verbose=False,
+        normalize=False,
+        # kernel_param_1=kernel_param_1_default,
+        # ...
+        # kernel_param_n=kernel_param_n_default,
+    ):
         """Initialise an `odd_sth` kernel."""
 
         # Add new parameters
@@ -81,16 +83,16 @@ class VertexHistogram(Kernel):
 
         """
         if not isinstance(X, Iterable):
-            raise TypeError('input must be an iterable\n')
+            raise TypeError("input must be an iterable\n")
         else:
             out = list()
-            for (i, x) in enumerate(iter(X)):
+            for i, x in enumerate(iter(X)):
                 is_iter = isinstance(x, Iterable)
                 if is_iter:
                     x = list(x)
                 if is_iter and len(x) in [0, 2, 3]:
                     if len(x) == 0:
-                        warn('Ignoring empty element on index: '+str(i))
+                        warn("Ignoring empty element on index: " + str(i))
                         continue
                     else:
                         # Our element is an iterable of at least 2 elements
@@ -99,16 +101,18 @@ class VertexHistogram(Kernel):
                     # get labels in any existing format
                     labels = x.get_labels(purpose="any")
                 else:
-                    raise TypeError('each element of X must be either a ' +
-                                     'graph object or a list with at least ' +
-                                     'a graph like object and node labels ' +
-                                     'dict \n')
+                    raise TypeError(
+                        "each element of X must be either a "
+                        + "graph object or a list with at least "
+                        + "a graph like object and node labels "
+                        + "dict \n"
+                    )
 
                 # Append frequencies for the current Graph
                 out.append(Counter(labels.values()))
 
             if len(out) == 0:
-                raise ValueError('parsed input is empty')
+                raise ValueError("parsed input is empty")
             return out
 
     def pairwise_operation(self, x, y):
@@ -125,4 +129,4 @@ class VertexHistogram(Kernel):
             The kernel value.
 
         """
-        return sum(x[k]*y[k] for k in x.keys())
+        return sum(x[k] * y[k] for k in x.keys())

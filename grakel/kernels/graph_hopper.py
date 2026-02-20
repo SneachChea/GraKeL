@@ -12,7 +12,7 @@ from numbers import Real
 from warnings import warn
 
 import numpy as np
-from grakel.utils import EPS
+
 from grakel.graph import Graph, dijkstra
 from grakel.kernels import Kernel
 
@@ -64,9 +64,7 @@ class GraphHopper(Kernel):
                     self.metric_ = bridge_kernel
                     self.calculate_norm_ = False
                 else:
-                    raise ValueError(
-                        'Unsupported kernel with name "' + str(self.kernel_type) + '"'
-                    )
+                    raise ValueError('Unsupported kernel with name "' + str(self.kernel_type) + '"')
             elif (
                 type(self.kernel_type) is tuple
                 and len(self.kernel_type) == 2
@@ -142,9 +140,7 @@ class GraphHopper(Kernel):
                 try:
                     attributes = np.array([attr[j] for j in range(nv)])
                 except TypeError:
-                    raise TypeError(
-                        "All attributes of a single graph should have the same dimension."
-                    )
+                    raise TypeError("All attributes of a single graph should have the same dimension.")
                 diam.append(int(np.max(spm[spm < float("Inf")])))
                 graphs.append((g.get_adjacency_matrix(), nv, attributes))
                 ni += 1
@@ -270,9 +266,7 @@ class GraphHopper(Kernel):
         elif y[0].shape[1] > m:
             yp = yp[:, :m, :][:, :, :m]
 
-        return self.metric_(
-            (xp.reshape(xp.shape[0], m_sq),) + x[1:], (yp.reshape(yp.shape[0], m_sq),) + y[1:]
-        )
+        return self.metric_((xp.reshape(xp.shape[0], m_sq),) + x[1:], (yp.reshape(yp.shape[0], m_sq),) + y[1:])
 
 
 def linear_kernel(x, y):
@@ -438,9 +432,7 @@ if __name__ == "__main__":
     from grakel.datasets import fetch_dataset
 
     # Create an argument parser for the installer of pynauty
-    parser = argparse.ArgumentParser(
-        description="Measuring classification accuracy  on multiscale_laplacian_fast"
-    )
+    parser = argparse.ArgumentParser(description="Measuring classification accuracy  on multiscale_laplacian_fast")
 
     parser.add_argument(
         "--dataset",
@@ -479,9 +471,7 @@ if __name__ == "__main__":
 
     full = bool(args.full)
     # The baseline dataset for node/edge-attributes
-    dataset_attr = fetch_dataset(
-        dataset_name, with_classes=True, prefer_attr_nodes=True, verbose=True
-    )
+    dataset_attr = fetch_dataset(dataset_name, with_classes=True, prefer_attr_nodes=True, verbose=True)
 
     from time import time
 

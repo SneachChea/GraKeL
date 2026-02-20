@@ -5,14 +5,15 @@ Graph classification on MUTAG using the shortest path kernel.
 
 Script makes use of :class:`grakel.ShortestPath`
 """
+
 from __future__ import print_function
+
 print(__doc__)
 
-import numpy as np
 
+from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score
 
 from grakel.datasets import fetch_dataset
 from grakel.kernels import ShortestPath
@@ -36,4 +37,4 @@ y_pred = clf.predict(K_test)
 
 # Computes and prints the classification accuracy
 acc = accuracy_score(y_test, y_pred)
-print("Accuracy:", str(round(acc*100, 2)) + "%")
+print("Accuracy:", str(round(acc * 100, 2)) + "%")

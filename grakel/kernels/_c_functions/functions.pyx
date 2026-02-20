@@ -1,21 +1,20 @@
 """A file that wraps c++ functions used in kernels submodule of grakel"""
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause"
-import numpy as np
-import cython
-
+from collections import defaultdict
 from functools import reduce as freduce
 from itertools import combinations
-from collections import defaultdict
 
+import cython
+import numpy as np
 from numpy import floor, sqrt
 
 cimport numpy as np
-
+from libc.stdlib cimport free, malloc
 from libc.string cimport const_char
-from libc.stdlib cimport malloc, free
 
 from grakel.kernels._c_functions.header cimport ArashPartov, sm_core_init
+
 
 def APHash(word):
     """C++ wrapped implementation of Arash Partov Hashing."""

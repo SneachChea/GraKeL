@@ -1,29 +1,24 @@
 """Multiscale Laplacian Graph Kernel as defined in :cite:`kondor2016multiscale`."""
+
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
 # Python 2/3 cross-compatibility import
 from __future__ import print_function
 
 import warnings
-import numpy as np
-
-from numbers import Real
 from math import exp
+from numbers import Real
 
-from sklearn.utils import check_random_state
-
-from numpy.linalg import eig
-from numpy.linalg import inv
-from numpy.linalg import multi_dot
-from numpy.linalg import eigvals
-
-from grakel.graph import Graph
+import numpy as np
+from numpy.linalg import eig, eigvals, inv, multi_dot
 from scipy.sparse.csgraph import laplacian
-
-from grakel.kernels import Kernel
 
 # For python2/3 compatibility
 from six.moves.collections_abc import Iterable
+from sklearn.utils import check_random_state
+
+from grakel.graph import Graph
+from grakel.kernels import Kernel
 
 positive_eigenvalue_limit = float("+1e-6")
 
@@ -64,20 +59,11 @@ class MultiscaleLaplacian(Kernel):
 
     _graph_format = "adjacency"
 
-    def __init__(self,
-                 n_jobs=None,
-                 normalize=False, verbose=False,
-                 random_state=None,
-                 L=3,
-                 P=10,
-                 gamma=0.01,
-                 heta=0.01,
-                 n_samples=50):
+    def __init__(
+        self, n_jobs=None, normalize=False, verbose=False, random_state=None, L=3, P=10, gamma=0.01, heta=0.01, n_samples=50
+    ):
         """Initialise a `multiscale_laplacian` kernel."""
-        super(MultiscaleLaplacian, self).__init__(
-            n_jobs=n_jobs,
-            normalize=normalize,
-            verbose=verbose)
+        super(MultiscaleLaplacian, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
 
         self.random_state = random_state
         self.gamma = gamma
@@ -85,8 +71,9 @@ class MultiscaleLaplacian(Kernel):
         self.L = L
         self.P = P
         self.n_samples = n_samples
-        self._initialized.update({"random_state": False, "gamma": False,
-                                  "heta": False, "L": False, "n_samples": False, "P": False})
+        self._initialized.update(
+            {"random_state": False, "gamma": False, "heta": False, "L": False, "n_samples": False, "P": False}
+        )
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
@@ -98,37 +85,37 @@ class MultiscaleLaplacian(Kernel):
 
         if not self._initialized["gamma"]:
             if not isinstance(self.gamma, Real):
-                raise TypeError('gamma must be a real number')
-            elif self.gamma == .0:
-                warnings.warn('with zero gamma the calculation may crash')
+                raise TypeError("gamma must be a real number")
+            elif self.gamma == 0.0:
+                warnings.warn("with zero gamma the calculation may crash")
             elif self.gamma < 0:
-                raise TypeError('gamma must be positive')
+                raise TypeError("gamma must be positive")
             self._initialized["gamma"] = True
 
         if not self._initialized["heta"]:
             if not isinstance(self.heta, Real):
-                raise TypeError('heta must be a real number')
-            elif self.heta == .0:
-                warnings.warn('with zero heta the calculation may crash')
+                raise TypeError("heta must be a real number")
+            elif self.heta == 0.0:
+                warnings.warn("with zero heta the calculation may crash")
             elif self.heta < 0:
-                raise TypeError('heta must be positive')
+                raise TypeError("heta must be positive")
             self._initialized["heta"] = True
 
         if not self._initialized["L"]:
             if type(self.L) is not int:
-                raise TypeError('L must be an integer')
+                raise TypeError("L must be an integer")
             elif self.L < 0:
-                raise TypeError('L must be positive')
+                raise TypeError("L must be positive")
             self._initialized["L"] = True
 
         if not self._initialized["n_samples"]:
             if type(self.n_samples) is not int or self.n_samples <= 0:
-                raise TypeError('n_samples must be a positive integer')
+                raise TypeError("n_samples must be a positive integer")
             self._initialized["n_samples"] = True
 
         if not self._initialized["P"]:
             if type(self.P) is not int or self.P <= 0:
-                raise TypeError('P must be a positive integer')
+                raise TypeError("P must be a positive integer")
             self._initialized["P"] = True
 
     def parse_input(self, X):
@@ -154,36 +141,34 @@ class MultiscaleLaplacian(Kernel):
 
         """
         if not isinstance(X, Iterable):
-            raise TypeError('input must be an iterable\n')
+            raise TypeError("input must be an iterable\n")
         else:
             ng = 0
             out = list()
             data = dict()
             neighborhoods = dict()
-            for (idx, x) in enumerate(iter(X)):
+            for idx, x in enumerate(iter(X)):
                 is_iter = False
                 if isinstance(x, Iterable):
                     is_iter, x = True, list(x)
                 if is_iter and len(x) in [0, 2, 3]:
                     if len(x) == 0:
-                        warnings.warn('Ignoring empty element ' +
-                                      'on index: '+str(idx))
+                        warnings.warn("Ignoring empty element " + "on index: " + str(idx))
                         continue
                     else:
                         x = Graph(x[0], x[1], {}, self._graph_format)
                 elif type(x) is Graph:
                     x.desired_format(self._graph_format)
                 else:
-                    raise TypeError('each element of X must be either a '
-                                    'graph or an iterable with at least 1 '
-                                    'and at most 3 elements\n')
+                    raise TypeError(
+                        "each element of X must be either a " "graph or an iterable with at least 1 " "and at most 3 elements\n"
+                    )
                 phi_d = x.get_labels()
                 A = x.get_adjacency_matrix()
                 try:
                     phi = np.array([list(phi_d[i]) for i in range(A.shape[0])])
                 except TypeError:
-                    raise TypeError('Features must be iterable and castable '
-                                    'in total to a numpy array.')
+                    raise TypeError("Features must be iterable and castable " "in total to a numpy array.")
 
                 Lap = laplacian(A).astype(float)
                 _increment_diagonal_(Lap, self.heta)
@@ -192,13 +177,12 @@ class MultiscaleLaplacian(Kernel):
                 ng += 1
 
             if ng == 0:
-                raise ValueError('parsed input is empty')
+                raise ValueError("parsed input is empty")
 
             # Define a function for calculating the S's of subgraphs of each iteration
             def calculate_C(k, j, l):
                 if type(neighborhoods[k]) is Graph:
-                    neighborhoods[k] = neighborhoods[k].produce_neighborhoods(
-                        r=self.L, sort_neighbors=False)
+                    neighborhoods[k] = neighborhoods[k].produce_neighborhoods(r=self.L, sort_neighbors=False)
 
                 indexes = neighborhoods[k][l][j]
                 L = laplacian(data[k][0][indexes, :][:, indexes]).astype(float)
@@ -210,8 +194,7 @@ class MultiscaleLaplacian(Kernel):
                 return (inv(S), np.sum(np.log(np.real(eigvals(S)))))
 
             if self._method_calling == 1:
-                V = [(k, j) for k in range(ng)
-                     for j in range(data[k][0].shape[0])]
+                V = [(k, j) for k in range(ng) for j in range(data[k][0].shape[0])]
 
                 ns = min(len(V), self.n_samples)
 
@@ -227,7 +210,7 @@ class MultiscaleLaplacian(Kernel):
                 v, w = np.real(v), np.real(w.T)
 
                 # keep only the positive
-                vpos = np.argpartition(v, -self.P)[-self.P:]
+                vpos = np.argpartition(v, -self.P)[-self.P :]
                 vpos = vpos[np.where(v[vpos] > positive_eigenvalue_limit)]
 
                 # ksi.shape = (k, Ns) * (Ns, P)
@@ -236,7 +219,7 @@ class MultiscaleLaplacian(Kernel):
                     # (n_samples, k) * (k, P)
                     data[j][1] = data[j][1].dot(ksi)
                 self._data_level = {0: ksi}
-                for l in range(1, self.L+1):
+                for l in range(1, self.L + 1):
                     # Take random samples from all the vertices of all graphs
                     self.random_state_.shuffle(V)
                     vs = V[:ns]
@@ -244,21 +227,18 @@ class MultiscaleLaplacian(Kernel):
                     # Compute the reference subsampled Gram matrix
                     K_proj = {k: np.zeros(shape=(data[k][0].shape[0], ns)) for k in range(ng)}
                     K, C = np.zeros(shape=(len(vs), len(vs))), dict()
-                    for (m, (k, j)) in enumerate(vs):
+                    for m, (k, j) in enumerate(vs):
                         C[m] = calculate_C(k, j, l)
                         K_proj[k][j, m] = K[m, m] = self.pairwise_operation(C[m], C[m])
-                        for (s, (k2, j2)) in enumerate(vs):
+                        for s, (k2, j2) in enumerate(vs):
                             if s < m:
-                                K[s, m] = K[m, s] \
-                                        = K_proj[k2][j2, m] \
-                                        = K_proj[k][j, s] \
-                                        = self.pairwise_operation(C[s], C[m])
+                                K[s, m] = K[m, s] = K_proj[k2][j2, m] = K_proj[k][j, s] = self.pairwise_operation(C[s], C[m])
                             else:
                                 break
 
                     # Compute the kernels of the relations of the reference to everything else
-                    for (k, j) in V[ns:]:
-                        for (m, _) in enumerate(vs):
+                    for k, j in V[ns:]:
+                        for m, _ in enumerate(vs):
                             K_proj[k][j, m] = self.pairwise_operation(C[m], calculate_C(k, j, l))
 
                     # w the eigen vectors, v the eigenvalues
@@ -266,7 +246,7 @@ class MultiscaleLaplacian(Kernel):
                     v, w = np.real(v), np.real(w.T)
 
                     # keep only the positive
-                    vpos = np.argpartition(v, -self.P)[-self.P:]
+                    vpos = np.argpartition(v, -self.P)[-self.P :]
                     vpos = vpos[np.where(v[vpos] > positive_eigenvalue_limit)]
 
                     # Q shape=(k, P)
@@ -282,7 +262,7 @@ class MultiscaleLaplacian(Kernel):
                     # (n, k) * (k, P)
                     data[j][1] = data[j][1].dot(ksi)
 
-                for l in range(1, self.L+1):
+                for l in range(1, self.L + 1):
                     C, Q = self._data_level[l]
                     for j in range(ng):
                         K_proj = np.zeros(shape=(data[j][0].shape[0], len(C)))
@@ -320,10 +300,10 @@ class MultiscaleLaplacian(Kernel):
 
         # Calculate the result in term of logs
         log_detS = -np.sum(np.log(np.real(eigvals(S_inv_x + S_inv_y))))
-        logr = (log_detS - 0.5*(log_det_x + log_det_y))/2.0
+        logr = (log_detS - 0.5 * (log_det_x + log_det_y)) / 2.0
 
         if logr < -30:
-            return .0
+            return 0.0
         else:
             return exp(logr)
 

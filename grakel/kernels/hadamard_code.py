@@ -1,27 +1,24 @@
 """The hadamard code kernel as defined in :cite:`icpram16`."""
+
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
 import warnings
-
-import numpy as np
-import joblib
-
 from math import ceil
-from numpy import log2
 
+import joblib
+import numpy as np
+from numpy import log2
 from scipy.linalg import hadamard
 
+# Python 2/3 cross-compatibility import
+from six import iteritems, itervalues
+from six.moves.collections_abc import Iterable
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
 
 from grakel.graph import Graph
 from grakel.kernels import Kernel
 from grakel.kernels.vertex_histogram import VertexHistogram
-
-# Python 2/3 cross-compatibility import
-from six import iteritems
-from six import itervalues
-from six.moves.collections_abc import Iterable
 
 
 class HadamardCode(Kernel):
@@ -55,11 +52,9 @@ class HadamardCode(Kernel):
 
     _graph_format = "auto"
 
-    def __init__(self, n_jobs=None, verbose=False,
-                 normalize=False, n_iter=5, base_graph_kernel=None):
+    def __init__(self, n_jobs=None, verbose=False, normalize=False, n_iter=5, base_graph_kernel=None):
         """Initialise a `hadamard_code` kernel."""
-        super(HadamardCode, self).__init__(
-            n_jobs=n_jobs, verbose=verbose, normalize=normalize)
+        super(HadamardCode, self).__init__(n_jobs=n_jobs, verbose=verbose, normalize=normalize)
 
         self.n_iter = n_iter
         self.base_graph_kernel = base_graph_kernel
@@ -78,19 +73,17 @@ class HadamardCode(Kernel):
                 try:
                     base_graph_kernel, params = base_graph_kernel
                 except Exception:
-                    raise TypeError('Base kernel was not formulated in '
-                                    'the correct way. '
-                                    'Check documentation.')
+                    raise TypeError("Base kernel was not formulated in " "the correct way. " "Check documentation.")
 
-                if not (type(base_graph_kernel) is type and
-                        issubclass(base_graph_kernel, Kernel)):
-                    raise TypeError('The first argument must be a valid '
-                                    'grakel.kernel.kernel Object')
+                if not (type(base_graph_kernel) is type and issubclass(base_graph_kernel, Kernel)):
+                    raise TypeError("The first argument must be a valid " "grakel.kernel.kernel Object")
                 if type(params) is not dict:
-                    raise ValueError('If the second argument of base '
-                                     'kernel exists, it must be a diction'
-                                     'ary between parameters names and '
-                                     'values')
+                    raise ValueError(
+                        "If the second argument of base "
+                        "kernel exists, it must be a diction"
+                        "ary between parameters names and "
+                        "values"
+                    )
                 params.pop("normalize", None)
 
             params["normalize"] = False
@@ -128,10 +121,10 @@ class HadamardCode(Kernel):
 
         """
         if self.base_graph_kernel_ is None:
-            raise ValueError('User must provide a base_graph_kernel')
+            raise ValueError("User must provide a base_graph_kernel")
         # Input validation and parsing
         if not isinstance(X, Iterable):
-            raise TypeError('input must be an iterable\n')
+            raise TypeError("input must be an iterable\n")
         else:
             nx, labels = 0, list()
             if self._method_calling in [1, 2]:
@@ -142,14 +135,13 @@ class HadamardCode(Kernel):
                 nl, labels_enum, base_graph_kernel = len(self._labels_enum), dict(self._labels_enum), self.X
             inp = list()
             neighbors = list()
-            for (idx, x) in enumerate(iter(X)):
+            for idx, x in enumerate(iter(X)):
                 is_iter = False
                 if isinstance(x, Iterable):
                     x, is_iter = list(x), True
                 if is_iter and (len(x) == 0 or len(x) >= 2):
                     if len(x) == 0:
-                        warnings.warn('Ignoring empty element on index: '
-                                      + str(idx))
+                        warnings.warn("Ignoring empty element on index: " + str(idx))
                         continue
                     else:
                         if len(x) > 2:
@@ -157,8 +149,7 @@ class HadamardCode(Kernel):
                             if len(x) > 3:
                                 extra = tuple(x[3:])
                             x = Graph(x[0], x[1], x[2], graph_format=self._graph_format)
-                            extra = (x.get_labels(purpose='any',
-                                                  label_type="edge", return_none=True), ) + extra
+                            extra = (x.get_labels(purpose="any", label_type="edge", return_none=True),) + extra
                         else:
                             x = Graph(x[0], x[1], {}, graph_format=self._graph_format)
                             extra = tuple()
@@ -167,14 +158,16 @@ class HadamardCode(Kernel):
                     if el is None:
                         extra = tuple()
                     else:
-                        extra = (el, )
+                        extra = (el,)
                 else:
-                    raise TypeError('each element of X must be either a ' +
-                                    'graph object or a list with at least ' +
-                                    'a graph like object and node labels ' +
-                                    'dict \n')
+                    raise TypeError(
+                        "each element of X must be either a "
+                        + "graph object or a list with at least "
+                        + "a graph like object and node labels "
+                        + "dict \n"
+                    )
 
-                label = x.get_labels(purpose='any')
+                label = x.get_labels(purpose="any")
                 inp.append((x.get_graph_object(), extra))
                 neighbors.append(x.get_edge_dictionary())
                 labels.append(label)
@@ -184,18 +177,18 @@ class HadamardCode(Kernel):
                         nl += 1
                 nx += 1
             if nx == 0:
-                raise ValueError('parsed input is empty')
+                raise ValueError("parsed input is empty")
 
         # Calculate the hadamard matrix
-        H = hadamard(int(2**(ceil(log2(nl)))))
+        H = hadamard(int(2 ** (ceil(log2(nl)))))
 
         def generate_graphs(labels):
             # Intial labeling of vertices based on their corresponding Hadamard code (i-th row of the
             # Hadamard matrix) where i is the i-th label on enumeration
             new_graphs, new_labels = list(), list()
-            for ((obj, extra), label) in zip(inp, labels):
+            for (obj, extra), label in zip(inp, labels):
                 new_label = dict()
-                for (k, v) in iteritems(label):
+                for k, v in iteritems(label):
                     new_label[k] = H[labels_enum[v], :]
                 new_graphs.append((obj, {i: tuple(j) for (i, j) in iteritems(new_label)}) + extra)
                 new_labels.append(new_label)
@@ -204,17 +197,16 @@ class HadamardCode(Kernel):
             # Main
             for i in range(1, self.n_iter):
                 new_graphs, labels, new_labels = list(), new_labels, list()
-                for ((obj, extra), neighbor, old_label) in zip(inp, neighbors, labels):
+                for (obj, extra), neighbor, old_label in zip(inp, neighbors, labels):
                     # Find unique labels and sort them for both graphs and keep for each node
                     # the temporary
                     new_label = dict()
-                    for (k, ns) in iteritems(neighbor):
+                    for k, ns in iteritems(neighbor):
                         new_label[k] = old_label[k]
                         for q in ns:
                             new_label[k] = np.add(new_label[k], old_label[q])
                     new_labels.append(new_label)
-                    new_graphs.append((obj, {i: tuple(j) for (i, j) in iteritems(new_label)}) +
-                                      extra)
+                    new_graphs.append((obj, {i: tuple(j) for (i, j) in iteritems(new_label)}) + extra)
                 yield new_graphs
 
         if self._method_calling in [1, 2]:
@@ -223,14 +215,11 @@ class HadamardCode(Kernel):
         if self._parallel is None:
             # Add the zero iteration element
             if self._method_calling == 1:
-                for (i, g) in enumerate(generate_graphs(labels)):
+                for i, g in enumerate(generate_graphs(labels)):
                     base_graph_kernel[i].fit(g)
             elif self._method_calling == 2:
                 graphs = generate_graphs(labels)
-                values = [
-                    base_graph_kernel[i].fit_transform(g)
-                    for (i, g) in enumerate(graphs)
-                ]
+                values = [base_graph_kernel[i].fit_transform(g) for (i, g) in enumerate(graphs)]
                 K = np.sum(values, axis=0)
             elif self._method_calling == 3:
                 # Calculate the kernel matrix without parallelization
@@ -239,16 +228,21 @@ class HadamardCode(Kernel):
                 K = np.sum(values, axis=0)
         else:
             if self._method_calling == 1:
-                self._parallel(joblib.delayed(efit)(base_graph_kernel[i], g)
-                               for (i, g) in enumerate(generate_graphs(labels)))
+                self._parallel(joblib.delayed(efit)(base_graph_kernel[i], g) for (i, g) in enumerate(generate_graphs(labels)))
             elif self._method_calling == 2:
                 # Calculate the kernel marix with parallelization
-                K = np.sum(self._parallel(joblib.delayed(efit_transform)(base_graph_kernel[i], g) for (i, g)
-                           in enumerate(generate_graphs(labels))), axis=0)
+                K = np.sum(
+                    self._parallel(
+                        joblib.delayed(efit_transform)(base_graph_kernel[i], g) for (i, g) in enumerate(generate_graphs(labels))
+                    ),
+                    axis=0,
+                )
             elif self._method_calling == 3:
                 # Calculate the kernel marix with parallelization
-                K = np.sum(self._parallel(joblib.delayed(etransform)(self.X[i], g) for (i, g)
-                           in enumerate(generate_graphs(labels))), axis=0)
+                K = np.sum(
+                    self._parallel(joblib.delayed(etransform)(self.X[i], g) for (i, g) in enumerate(generate_graphs(labels))),
+                    axis=0,
+                )
 
         if self._method_calling == 1:
             self._labels_enum = labels_enum
@@ -281,18 +275,18 @@ class HadamardCode(Kernel):
         """
         self._method_calling = 3
         # Check is fit had been called
-        check_is_fitted(self, ['X'])
+        check_is_fitted(self, ["X"])
 
         # Input validation and parsing
         if X is None:
-            raise ValueError('transform input cannot be None')
+            raise ValueError("transform input cannot be None")
         else:
             km = self.parse_input(X)
 
         self._is_transformed = True
         if self.normalize:
             X_diag, Y_diag = self.diagonal()
-            old_settings = np.seterr(divide='ignore')
+            old_settings = np.seterr(divide="ignore")
             km /= np.sqrt(np.outer(Y_diag, X_diag))
             km = np.nan_to_num(km)
             np.seterr(**old_settings)
@@ -327,13 +321,13 @@ class HadamardCode(Kernel):
         self._is_transformed = False
         self.initialize()
         if X is None:
-            raise ValueError('transform input cannot be None')
+            raise ValueError("transform input cannot be None")
         else:
             km, self.X = self.parse_input(X)
 
         self._X_diag = np.diagonal(km)
         if self.normalize:
-            old_settings = np.seterr(divide='ignore')
+            old_settings = np.seterr(divide="ignore")
             km = np.nan_to_num(np.divide(km, np.sqrt(np.outer(self._X_diag, self._X_diag))))
             np.seterr(**old_settings)
         return km
@@ -360,9 +354,9 @@ class HadamardCode(Kernel):
 
         """
         # Check if fit had been called
-        check_is_fitted(self, ['X'])
+        check_is_fitted(self, ["X"])
         try:
-            check_is_fitted(self, ['_X_diag'])
+            check_is_fitted(self, ["_X_diag"])
             if self._is_transformed:
                 Y_diag = self.X[0].diagonal()[1]
                 for i in range(1, self.n_iter):

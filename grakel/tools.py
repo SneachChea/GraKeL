@@ -1,16 +1,14 @@
 """A file having general functions and classes usefull insid `grakel`."""
 
 from __future__ import generators
-import sys
+
 import operator
-import collections
 
 import numpy as np
 
-from scipy.special import binom as binomial
-
 # Python 2/3 cross-compatibility import
 from future.utils import iteritems
+from scipy.special import binom as binomial
 from six.moves.collections_abc import Hashable
 
 
@@ -31,15 +29,14 @@ class priority_dict(dict, object):
     def smallest(self):
         """Find smallest item after removing deleted items from heap."""
         if len(self) == 0:
-            raise(IndexError, "smallest of empty priorityDictionary")
+            raise (IndexError, "smallest of empty priorityDictionary")
         heap = self.__heap
         while heap[0][1] not in self or self[heap[0][1]] != heap[0][0]:
             lastItem = heap.pop()
             insertionPoint = 0
             while 1:
-                smallChild = 2*insertionPoint+1
-                if smallChild+1 < len(heap) and \
-                        heap[smallChild] > heap[smallChild+1]:
+                smallChild = 2 * insertionPoint + 1
+                if smallChild + 1 < len(heap) and heap[smallChild] > heap[smallChild + 1]:
                     smallChild += 1
                 if smallChild >= len(heap) or lastItem <= heap[smallChild]:
                     heap[insertionPoint] = lastItem
@@ -50,11 +47,13 @@ class priority_dict(dict, object):
 
     def __iter__(self):
         """Create destructive sorted iterator of priorityDictionary."""
+
         def iterfn():
             while len(self) > 0:
                 x = self.smallest()
                 yield x
                 del self[x]
+
         return iterfn()
 
     def __setitem__(self, key, val):
@@ -73,10 +72,9 @@ class priority_dict(dict, object):
             newPair = (val, key)
             insertionPoint = len(heap)
             heap.append(None)
-            while insertionPoint > 0 and \
-                    newPair < heap[(insertionPoint-1)//2]:
-                heap[insertionPoint] = heap[(insertionPoint-1)//2]
-                insertionPoint = (insertionPoint-1)//2
+            while insertionPoint > 0 and newPair < heap[(insertionPoint - 1) // 2]:
+                heap[insertionPoint] = heap[(insertionPoint - 1) // 2]
+                insertionPoint = (insertionPoint - 1) // 2
             heap[insertionPoint] = newPair
 
     def setdefault(self, key, val):
@@ -106,7 +104,7 @@ def nested_dict_add(dictionary, value, *keys):
     """
     address = dictionary
     for k in keys[:-1]:
-        if(k not in address):
+        if k not in address:
             address[k] = dict()
         address = address[k]
     address[keys[-1]] = value
@@ -144,7 +142,7 @@ def nested_dict_get(dictionary, *keys, **kargs):
 
     element = dictionary
     for k in keys:
-        if (k in element):
+        if k in element:
             element = element[k]
         else:
             return default
@@ -175,8 +173,10 @@ def inv_dict(d):
                 k = frozenset(k)
             else:
                 if not isinstance(k, Hashable):
-                    raise ValueError('in order to calculate inverse \
-                          dictionary, values must be hashable')
+                    raise ValueError(
+                        "in order to calculate inverse \
+                          dictionary, values must be hashable"
+                    )
             if k not in inv:
                 inv[k] = list()
             inv[k].append(a)
@@ -184,16 +184,10 @@ def inv_dict(d):
     return inv
 
 
-ops = {
-    '>': operator.gt,
-    '<': operator.lt,
-    '>=': operator.ge,
-    '<=': operator.le,
-    '==': operator.eq
-    }
+ops = {">": operator.gt, "<": operator.lt, ">=": operator.ge, "<=": operator.le, "==": operator.eq}
 
 
-def matrix_to_dict(matrix, op='==', const_value=0, allow_diagonal=False):
+def matrix_to_dict(matrix, op="==", const_value=0, allow_diagonal=False):
     """Matrix to dictionary transformation based on constraints.
 
     Parameters
@@ -213,8 +207,8 @@ def matrix_to_dict(matrix, op='==', const_value=0, allow_diagonal=False):
             The produced matrix dictionary.
 
     """
-    if op not in ['>', '<', '>=', '<=', '==']:
-        raise ValueError('unsupported operator')
+    if op not in [">", "<", ">=", "<=", "=="]:
+        raise ValueError("unsupported operator")
 
     opr = ops[op]
 
@@ -258,13 +252,13 @@ def distribute_samples(n, subsets_size_range, n_samples):
 
     # Distribute samples to subset groups
     maxd = min(max_ss, n)
-    w = np.array([binomial(n, k) for k in range(min_ss, maxd+1)], dtype=float)
+    w = np.array([binomial(n, k) for k in range(min_ss, maxd + 1)], dtype=float)
     w = w / np.sum(w)
 
     smpls = np.floor(w * n_samples).astype(int)
     ss = smpls.shape[0]
 
     for r in range(int(n_samples - np.sum(smpls))):
-        smpls[(ss-r-1) % ss] += 1
+        smpls[(ss - r - 1) % ss] += 1
 
-    return {i + min_ss: smpls[i] for i in range(ss) if smpls[i] > .0}
+    return {i + min_ss: smpls[i] for i in range(ss) if smpls[i] > 0.0}

@@ -6,8 +6,8 @@ import sys
 from platform import system
 from typing import List
 
-from numpy import get_include
 from Cython.Build import build_ext
+from numpy import get_include
 from setuptools import Extension, find_packages, setup
 
 
