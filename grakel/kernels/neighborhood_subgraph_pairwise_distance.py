@@ -1,4 +1,5 @@
 """Neighborhood subgraph pairwise distance kernel :cite:`costa2010fast`."""
+
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
 import warnings
@@ -21,6 +22,8 @@ from six import iteritems
 from six.moves import filterfalse
 from builtins import range
 from six.moves.collections_abc import Iterable
+
+EPS = 1e-8
 
 
 class NeighborhoodSubgraphPairwiseDistance(Kernel):
@@ -61,9 +64,8 @@ class NeighborhoodSubgraphPairwiseDistance(Kernel):
         """Initialize an NSPD kernel."""
         # setup valid parameters and initialise from parent
         super(NeighborhoodSubgraphPairwiseDistance, self).__init__(
-            n_jobs=n_jobs,
-            normalize=normalize,
-            verbose=verbose)
+            n_jobs=n_jobs, normalize=normalize, verbose=verbose
+        )
 
         self.r = r
         self.d = d
@@ -73,17 +75,19 @@ class NeighborhoodSubgraphPairwiseDistance(Kernel):
         """Initialize all transformer arguments, needing initialization."""
         if not self._initialized["n_jobs"]:
             if self.n_jobs is not None:
-                warnings.warn('no implemented parallelization for NeighborhoodSubgraphPairwiseDistance')
+                warnings.warn(
+                    "no implemented parallelization for NeighborhoodSubgraphPairwiseDistance"
+                )
             self._initialized["n_jobs"] = True
 
         if not self._initialized["r"]:
             if type(self.r) is not int or self.r < 0:
-                raise ValueError('r must be a positive integer')
+                raise ValueError("r must be a positive integer")
             self._initialized["r"] = True
 
         if not self._initialized["d"]:
             if type(self.d) is not int or self.d < 0:
-                raise ValueError('d must be a positive integer')
+                raise ValueError("d must be a positive integer")
             self._initialized["d"] = True
 
     def parse_input(self, X):
@@ -110,7 +114,7 @@ class NeighborhoodSubgraphPairwiseDistance(Kernel):
 
         """
         if not isinstance(X, Iterable):
-            raise TypeError('input must be an iterable\n')
+            raise TypeError("input must be an iterable\n")
         else:
             # Hold the number of graphs
             ng = 0
@@ -120,28 +124,31 @@ class NeighborhoodSubgraphPairwiseDistance(Kernel):
 
             # Index all keys for combinations of r, d
             all_keys = defaultdict(dict)
-            for (idx, x) in enumerate(iter(X)):
+            for idx, x in enumerate(iter(X)):
                 is_iter = False
                 if isinstance(x, Iterable):
                     is_iter, x = True, list(x)
                 if is_iter and len(x) in [0, 3]:
                     if len(x) == 0:
-                        warnings.warn('Ignoring empty element' +
-                                      ' on index: '+str(idx))
+                        warnings.warn("Ignoring empty element" + " on index: " + str(idx))
                         continue
                     else:
                         g = Graph(x[0], x[1], x[2])
                         g.change_format("adjacency")
                 elif type(x) is Graph:
-                    g = Graph(x.get_adjacency_matrix(),
-                              x.get_labels(purpose="adjacency", label_type="vertex"),
-                              x.get_labels(purpose="adjacency", label_type="edge"))
+                    g = Graph(
+                        x.get_adjacency_matrix(),
+                        x.get_labels(purpose="adjacency", label_type="vertex"),
+                        x.get_labels(purpose="adjacency", label_type="edge"),
+                    )
                 else:
-                    raise TypeError('each element of X must have either ' +
-                                    'a graph with labels for node and edge ' +
-                                    'or 3 elements consisting of a graph ' +
-                                    'type object, labels for vertices and ' +
-                                    'labels for edges.')
+                    raise TypeError(
+                        "each element of X must have either "
+                        + "a graph with labels for node and edge "
+                        + "or 3 elements consisting of a graph "
+                        + "type object, labels for vertices and "
+                        + "labels for edges."
+                    )
 
                 # Bring to the desired format
                 g.change_format(self._graph_format)
@@ -162,17 +169,17 @@ class NeighborhoodSubgraphPairwiseDistance(Kernel):
 
                 # Produce all the neighborhoods and the distance pairs
                 # up to the desired radius and maximum distance
-                N, D, D_pair = g.produce_neighborhoods(self.r, purpose="dictionary",
-                                                       with_distances=True, d=self.d)
+                N, D, D_pair = g.produce_neighborhoods(
+                    self.r, purpose="dictionary", with_distances=True, d=self.d
+                )
 
                 # Hash all the neighborhoods
                 H = self._hash_neighborhoods(vertices, edges, Lv, Le, N, D_pair)
 
                 if self._method_calling == 1:
-                    for d in filterfalse(lambda x: x not in D,
-                                         range(self.d+1)):
-                        for (A, B) in D[d]:
-                            for r in range(self.r+1):
+                    for d in filterfalse(lambda x: x not in D, range(self.d + 1)):
+                        for A, B in D[d]:
+                            for r in range(self.r + 1):
                                 key = (H[r, A], H[r, B])
                                 keys = all_keys[r, d]
                                 idx = keys.get(key, None)
@@ -182,11 +189,10 @@ class NeighborhoodSubgraphPairwiseDistance(Kernel):
                                 data[r, d][ng, idx] = data[r, d].get((ng, idx), 0) + 1
 
                 elif self._method_calling == 3:
-                    for d in filterfalse(lambda x: x not in D,
-                                         range(self.d+1)):
-                        for (A, B) in D[d]:
+                    for d in filterfalse(lambda x: x not in D, range(self.d + 1)):
+                        for A, B in D[d]:
                             # Based on the edges of the bidirected graph
-                            for r in range(self.r+1):
+                            for r in range(self.r + 1):
                                 keys = all_keys[r, d]
                                 fit_keys = self._fit_keys[r, d]
                                 key = (H[r, A], H[r, B])
@@ -199,18 +205,18 @@ class NeighborhoodSubgraphPairwiseDistance(Kernel):
                                 data[r, d][ng, idx] = data[r, d].get((ng, idx), 0) + 1
                 ng += 1
             if ng == 0:
-                raise ValueError('parsed input is empty')
+                raise ValueError("parsed input is empty")
 
             if self._method_calling == 1:
                 # A feature matrix for all levels
                 M = dict()
 
-                for (key, d) in filterfalse(lambda a: len(a[1]) == 0,
-                                            iteritems(data)):
+                for key, d in filterfalse(lambda a: len(a[1]) == 0, iteritems(data)):
                     indexes, data = zip(*iteritems(d))
                     rows, cols = zip(*indexes)
-                    M[key] = csr_matrix((data, (rows, cols)), shape=(ng, len(all_keys[key])),
-                                        dtype=np.int64)
+                    M[key] = csr_matrix(
+                        (data, (rows, cols)), shape=(ng, len(all_keys[key])), dtype=np.int64
+                    )
                 self._fit_keys = all_keys
                 self._ngx = ng
 
@@ -218,13 +224,14 @@ class NeighborhoodSubgraphPairwiseDistance(Kernel):
                 # A feature matrix for all levels
                 M = dict()
 
-                for (key, d) in filterfalse(lambda a: len(a[1]) == 0,
-                                            iteritems(data)):
+                for key, d in filterfalse(lambda a: len(a[1]) == 0, iteritems(data)):
                     indexes, data = zip(*iteritems(d))
                     rows, cols = zip(*indexes)
-                    M[key] = csr_matrix((data, (rows, cols)),
-                                        shape=(ng, len(all_keys[key]) + len(self._fit_keys[key])),
-                                        dtype=np.int64)
+                    M[key] = csr_matrix(
+                        (data, (rows, cols)),
+                        shape=(ng, len(all_keys[key]) + len(self._fit_keys[key])),
+                        dtype=np.int64,
+                    )
 
                 self._ngy = ng
 
@@ -254,27 +261,26 @@ class NeighborhoodSubgraphPairwiseDistance(Kernel):
         """
         self._method_calling = 3
         # Check is fit had been called
-        check_is_fitted(self, ['X'])
+        check_is_fitted(self, ["X"])
 
         # Input validation and parsing
         if X is None:
-            raise ValueError('transform input cannot be None')
+            raise ValueError("transform input cannot be None")
         else:
             Y = self.parse_input(X)
 
         try:
-            check_is_fitted(self, ['_X_level_norm_factor'])
+            check_is_fitted(self, ["_X_level_norm_factor"])
         except NotFittedError:
-            self._X_level_norm_factor = \
-                {key: np.array(M.power(2).sum(-1))
-                 for (key, M) in iteritems(self.X)}
+            self._X_level_norm_factor = {
+                key: np.array(M.power(2).sum(-1)) for (key, M) in iteritems(self.X)
+            }
 
         N = self._X_level_norm_factor
         S = np.zeros(shape=(self._ngy, self._ngx))
-        for (key, Mp) in filterfalse(lambda x: x[0] not in self.X,
-                                     iteritems(Y)):
+        for key, Mp in filterfalse(lambda x: x[0] not in self.X, iteritems(Y)):
             M = self.X[key]
-            K = M.dot(Mp.T[:M.shape[1]]).toarray().T
+            K = M.dot(Mp.T[: M.shape[1]]).toarray().T
             S += np.nan_to_num(K / np.sqrt(np.outer(np.array(Mp.power(2).sum(-1)), N[key])))
 
         self._Y = Y
@@ -307,12 +313,12 @@ class NeighborhoodSubgraphPairwiseDistance(Kernel):
         self.fit(X)
 
         S, N = np.zeros(shape=(self._ngx, self._ngx)), dict()
-        for (key, M) in iteritems(self.X):
+        for key, M in iteritems(self.X):
             K = M.dot(M.T).toarray()
             K_diag = K.diagonal()
             N[key] = K_diag
-            Q = K / np.sqrt(np.outer(K_diag, K_diag))
-            np.fill_diagonal(Q, np.nan_to_num(np.diag(Q), nan=1.))
+            Q = K / (np.sqrt(np.outer(K_diag, K_diag)) + EPS)
+            np.fill_diagonal(Q, np.nan_to_num(np.diag(Q), nan=1.0))
             Q = np.nan_to_num(Q)
             S = S + Q
 
@@ -342,15 +348,15 @@ class NeighborhoodSubgraphPairwiseDistance(Kernel):
 
         """
         # constant based on normalization of krd
-        check_is_fitted(self, ['X'])
+        check_is_fitted(self, ["X"])
         try:
-            check_is_fitted(self, ['_X_diag'])
+            check_is_fitted(self, ["_X_diag"])
         except NotFittedError:
             # Calculate diagonal of X
             self._X_diag = len(self.X)
 
         try:
-            check_is_fitted(self, ['_Y'])
+            check_is_fitted(self, ["_Y"])
             return self._X_diag, len(self._Y)
         except NotFittedError:
             return self._X_diag
@@ -387,8 +393,7 @@ class NeighborhoodSubgraphPairwiseDistance(Kernel):
             re, lv, le = sel, Lv, Le
             for radius in range(self.r, -1, -1):
                 sub_vertices = sorted(N[radius][v])
-                re = {(i, j) for (i, j) in re
-                      if i in sub_vertices and j in sub_vertices}
+                re = {(i, j) for (i, j) in re if i in sub_vertices and j in sub_vertices}
                 lv = {v: lv[v] for v in sub_vertices}
                 le = {e: le[e] for e in edges}
                 H[radius, v] = hash_graph(D_pair, sub_vertices, re, lv, le)
@@ -429,16 +434,17 @@ def hash_graph(D, vertices, edges, glv, gle):
     # Make labels for vertices
     Lv = dict()
     for i in vertices:
-        label = "|".join(sorted([str(D[(i, j)]) + ',' + str(glv[j])
-                                 for j in vertices if (i, j) in D]))
+        label = "|".join(
+            sorted([str(D[(i, j)]) + "," + str(glv[j]) for j in vertices if (i, j) in D])
+        )
         encoding += label + "."
         Lv[i] = label
 
-    encoding = encoding[:-1]+":"
+    encoding = encoding[:-1] + ":"
 
     # Expand to labels for edges
-    for (i, j) in edges:
-        encoding += Lv[i] + ',' + Lv[j] + ',' + str(gle[(i, j)]) + "_"
+    for i, j in edges:
+        encoding += Lv[i] + "," + Lv[j] + "," + str(gle[(i, j)]) + "_"
 
     # Arash Partov hashing, as in the original
     # implementation of NSPK.

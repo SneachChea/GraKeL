@@ -1,29 +1,22 @@
 """The main class file representing a kernel."""
+
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
-import collections
-import warnings
 import copy
+import warnings
 
-import numpy as np
+# Python 2/3 cross-compatibility import
+from collections.abc import Iterable
+
 import joblib
-
-from sklearn.base import BaseEstimator
-from sklearn.base import TransformerMixin
+import numpy as np
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
 
 from grakel.graph import Graph
-from grakel.kernels._c_functions import k_to_ij_triangular
-from grakel.kernels._c_functions import k_to_ij_rectangular
-
-# Python 2/3 cross-compatibility import
-from six import iteritems
-from six.moves.collections_abc import Iterable
-try:
-    import itertools.imap as map
-except ImportError:
-    pass
+from grakel.utils import EPS
+from grakel.kernels._c_functions import k_to_ij_rectangular, k_to_ij_triangular
 
 
 class Kernel(BaseEstimator, TransformerMixin):
@@ -79,10 +72,7 @@ class Kernel(BaseEstimator, TransformerMixin):
     _graph_format = "dictionary"
     _method_calling = 0
 
-    def __init__(self,
-                 n_jobs=None,
-                 normalize=False,
-                 verbose=False):
+    def __init__(self, n_jobs=None, normalize=False, verbose=False):
         """`__init__` for `kernel` object."""
         self.verbose = verbose
         self.n_jobs = n_jobs
@@ -119,7 +109,7 @@ class Kernel(BaseEstimator, TransformerMixin):
 
         # Input validation and parsing
         if X is None:
-            raise ValueError('`fit` input cannot be None')
+            raise ValueError("`fit` input cannot be None")
         else:
             self.X = self.parse_input(X)
 
@@ -148,11 +138,11 @@ class Kernel(BaseEstimator, TransformerMixin):
         """
         self._method_calling = 3
         # Check is fit had been called
-        check_is_fitted(self, ['X'])
+        check_is_fitted(self, ["X"])
 
         # Input validation and parsing
         if X is None:
-            raise ValueError('`transform` input cannot be None')
+            raise ValueError("`transform` input cannot be None")
         else:
             Y = self.parse_input(X)
 
@@ -164,7 +154,7 @@ class Kernel(BaseEstimator, TransformerMixin):
         self._is_transformed = True
         if self.normalize:
             X_diag, Y_diag = self.diagonal()
-            km /= np.sqrt(np.outer(Y_diag, X_diag))
+            km = km / (np.sqrt(np.outer(Y_diag, X_diag)) + EPS)  # To avoid division by 0
         return km
 
     def fit_transform(self, X, y=None):
@@ -199,7 +189,7 @@ class Kernel(BaseEstimator, TransformerMixin):
 
         self._X_diag = np.diagonal(km)
         if self.normalize:
-            return km / np.sqrt(np.outer(self._X_diag, self._X_diag))
+            return km / (np.sqrt(np.outer(self._X_diag, self._X_diag)) + EPS)
         else:
             return km
 
@@ -228,29 +218,33 @@ class Kernel(BaseEstimator, TransformerMixin):
             K = np.zeros(shape=(len(self.X), len(self.X)))
             if self._parallel is None:
                 cache = list()
-                for (i, x) in enumerate(self.X):
+                for i, x in enumerate(self.X):
                     K[i, i] = self.pairwise_operation(x, x)
-                    for (j, y) in enumerate(cache):
+                    for j, y in enumerate(cache):
                         K[j, i] = self.pairwise_operation(y, x)
                     cache.append(x)
             else:
                 dim = len(self.X)
-                n_jobs, nsamples = self._n_jobs, ((dim+1)*(dim))//2
+                n_jobs, nsamples = self._n_jobs, ((dim + 1) * (dim)) // 2
 
                 def kij(k):
                     return k_to_ij_triangular(k, dim)
 
-                split = [iter(((i, j), (self.X[i], self.X[j])) for i, j in
-                         map(kij, range(*rg))) for rg in indexes(n_jobs, nsamples)]
+                split = [
+                    iter(((i, j), (self.X[i], self.X[j])) for i, j in map(kij, range(*rg)))
+                    for rg in indexes(n_jobs, nsamples)
+                ]
 
-                self._parallel(joblib.delayed(assign)(s, K, self.pairwise_operation) for s in split)
+                self._parallel(
+                    joblib.delayed(assign)(s, K, self.pairwise_operation) for s in split
+                )
             K = np.triu(K) + np.triu(K, 1).T
 
         else:
             K = np.zeros(shape=(len(Y), len(self.X)))
             if self._parallel is None:
-                for (j, y) in enumerate(Y):
-                    for (i, x) in enumerate(self.X):
+                for j, y in enumerate(Y):
+                    for i, x in enumerate(self.X):
                         K[j, i] = self.pairwise_operation(y, x)
             else:
                 dim_X, dim_Y = len(self.X), len(Y)
@@ -259,10 +253,14 @@ class Kernel(BaseEstimator, TransformerMixin):
                 def kij(k):
                     return k_to_ij_rectangular(k, dim_X)
 
-                split = [iter(((j, i), (Y[j], self.X[i])) for i, j in
-                         map(kij, range(*rg))) for rg in indexes(n_jobs, nsamples)]
+                split = [
+                    iter(((j, i), (Y[j], self.X[i])) for i, j in map(kij, range(*rg)))
+                    for rg in indexes(n_jobs, nsamples)
+                ]
 
-                self._parallel(joblib.delayed(assign)(s, K, self.pairwise_operation) for s in split)
+                self._parallel(
+                    joblib.delayed(assign)(s, K, self.pairwise_operation) for s in split
+                )
         return K
 
     def diagonal(self):
@@ -284,20 +282,20 @@ class Kernel(BaseEstimator, TransformerMixin):
 
         """
         # Check is fit had been called
-        check_is_fitted(self, ['X'])
+        check_is_fitted(self, ["X"])
         try:
-            check_is_fitted(self, ['_X_diag'])
+            check_is_fitted(self, ["_X_diag"])
         except NotFittedError:
             # Calculate diagonal of X
             self._X_diag = np.empty(shape=(len(self.X),))
-            for (i, x) in enumerate(self.X):
+            for i, x in enumerate(self.X):
                 self._X_diag[i] = self.pairwise_operation(x, x)
 
         try:
             # If transform has happened return both diagonals
-            check_is_fitted(self, ['_Y'])
+            check_is_fitted(self, ["_Y"])
             Y_diag = np.empty(shape=(len(self._Y),))
-            for (i, y) in enumerate(self._Y):
+            for i, y in enumerate(self._Y):
                 Y_diag[i] = self.pairwise_operation(y, y)
 
             return self._X_diag, Y_diag
@@ -325,21 +323,19 @@ class Kernel(BaseEstimator, TransformerMixin):
 
         """
         if not isinstance(X, Iterable):
-            raise TypeError('input must be an iterable\n')
+            raise TypeError("input must be an iterable\n")
         else:
             Xp = list()
-            for (i, x) in enumerate(iter(X)):
+            for i, x in enumerate(iter(X)):
                 is_iter = isinstance(x, Iterable)
                 if is_iter:
                     x = list(x)
                 if is_iter and len(x) in [0, 1, 2, 3]:
                     if len(x) == 0:
-                        warnings.warn('Ignoring empty element' +
-                                      'on index: '+str(i)+'..')
+                        warnings.warn("Ignoring empty element" + "on index: " + str(i) + "..")
                         continue
                     elif len(x) == 1:
-                        Xp.append(Graph(x[0], {}, {},
-                                        self._graph_format))
+                        Xp.append(Graph(x[0], {}, {}, self._graph_format))
                     elif len(x) == 2:
                         Xp.append(Graph(x[0], x[1], {}, self._graph_format))
                     else:
@@ -347,24 +343,27 @@ class Kernel(BaseEstimator, TransformerMixin):
                 elif type(x) is Graph:
                     Xp.append(x)
                 else:
-                    raise TypeError('Each element of X must have at least ' +
-                                    'one and at most 3 elements.\n')
+                    raise TypeError(
+                        "Each element of X must have at least " + "one and at most 3 elements.\n"
+                    )
             if len(Xp) == 0:
-                raise ValueError('Parsed input is empty.')
+                raise ValueError("Parsed input is empty.")
             return Xp
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialisation."""
         if not self._initialized["n_jobs"]:
             if type(self.n_jobs) is not int and self.n_jobs is not None:
-                raise ValueError('n_jobs parameter must be an int '
-                                 'indicating the number of jobs as in joblib or None')
+                raise ValueError(
+                    "n_jobs parameter must be an int "
+                    "indicating the number of jobs as in joblib or None"
+                )
             elif self.n_jobs is None:
                 self._parallel = None
             else:
-                self._parallel = joblib.Parallel(n_jobs=self.n_jobs,
-                                                 backend="threading",
-                                                 pre_dispatch='all')
+                self._parallel = joblib.Parallel(
+                    n_jobs=self.n_jobs, backend="threading", pre_dispatch="all"
+                )
                 self._n_jobs = self._parallel._effective_n_jobs()
             self._initialized["n_jobs"] = True
 
@@ -382,7 +381,7 @@ class Kernel(BaseEstimator, TransformerMixin):
             The kernel value.
 
         """
-        raise NotImplementedError('Pairwise operation is not implemented!')
+        raise NotImplementedError("Pairwise operation is not implemented!")
 
     def set_params(self, **params):
         """Call the parent method."""
@@ -391,8 +390,8 @@ class Kernel(BaseEstimator, TransformerMixin):
             params = copy.deepcopy(params)
 
             # Iterate over the parameters
-            for key, value in iteritems(params):
-                key, delim, sub_key = key.partition('__')
+            for key, value in params.items():
+                key, delim, sub_key = key.partition("__")
                 if delim:
                     if sub_key in self._initialized:
                         self._initialized[sub_key] = False
@@ -409,11 +408,11 @@ def indexes(n_jobs, nsamples):
 
     if n_jobs >= nsamples:
         for i in range(nsamples):
-            yield (i, i+1)
+            yield (i, i + 1)
     else:
-        ns = nsamples/n_jobs
+        ns = nsamples / n_jobs
         start = 0
-        for i in range(n_jobs-1):
+        for i in range(n_jobs - 1):
             end = start + ns
             yield (int(start), int(end))
             start = end
