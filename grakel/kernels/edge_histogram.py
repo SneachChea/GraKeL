@@ -15,7 +15,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 
 
 class EdgeHistogram(Kernel):
@@ -138,7 +138,10 @@ class EdgeHistogram(Kernel):
                     features[rows, cols] = data
                 except MemoryError:
                     warn("memory-error: switching to sparse")
-                    self.sparse_, features = True, csr_matrix((data, (rows, cols)), shape=(ni, len(labels)), copy=False)
+                    self.sparse_, features = (
+                        True,
+                        csr_matrix((data, (rows, cols)), shape=(ni, len(labels)), copy=False),
+                    )
 
             if ni == 0:
                 raise ValueError("parsed input is empty")

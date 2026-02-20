@@ -15,7 +15,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 
 
 class OddSth(Kernel):
@@ -610,7 +610,11 @@ def big_dag_append(dag, big_dag=None, merge_features=True):
 if __name__ == "__main__":
     # Dag Example from original paper
     tree_a = ({0, 1, 2, 3}, {0: [1, 2], 1: [3], 2: [], 3: []}, {0: "a", 1: "b", 2: "d", 3: "c"})
-    tree_b = ({0, 1, 2, 3, 4}, {0: [1, 2], 1: [3], 2: [4], 3: [], 4: []}, {0: "a", 1: "b", 2: "c", 3: "c", 4: "d"})
+    tree_b = (
+        {0, 1, 2, 3, 4},
+        {0: [1, 2], 1: [3], 2: [4], 3: [], 4: []},
+        {0: "a", 1: "b", 2: "c", 3: "c", 4: "d"},
+    )
 
     todd_a = odd(tree_a[0], tree_a[1], tree_a[2])
     todd_b = odd(tree_b[0], tree_b[1], tree_b[2])

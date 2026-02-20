@@ -17,7 +17,7 @@ from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 from grakel.kernels._c_functions import ConSubg
 from grakel.kernels._isomorphism import Graph as bGraph
 
@@ -111,7 +111,9 @@ class GraphletSampling(Kernel):
 
     _graph_format = "adjacency"
 
-    def __init__(self, n_jobs=None, normalize=False, verbose=False, random_state=None, k=5, sampling=None):
+    def __init__(
+        self, n_jobs=None, normalize=False, verbose=False, random_state=None, k=5, sampling=None
+    ):
         """Initialise a subtree_wl kernel."""
         super(GraphletSampling, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
 
@@ -137,7 +139,7 @@ class GraphletSampling(Kernel):
                 raise TypeError("k must be an int")
 
             if self.k > 10:
-                warnings.warn("graphlets are too big - " "computation may be slow")
+                warnings.warn("graphlets are too big - computation may be slow")
             elif self.k < 3:
                 raise TypeError("k must be bigger than 3")
 
@@ -160,7 +162,10 @@ class GraphletSampling(Kernel):
                     # Display a warning if arguments ignored
                     args = [arg for arg in ["delta", "epsilon", "a"] if arg in sampling]
                     if len(args):
-                        warnings.warn("Number of samples defined as input, " + "ignoring arguments:", ", ".join(args))
+                        warnings.warn(
+                            "Number of samples defined as input, " + "ignoring arguments:",
+                            ", ".join(args),
+                        )
 
                     # Initialise the sample graphlets function
                     sample_graphlets = sample_graphlets_probabilistic
@@ -185,10 +190,20 @@ class GraphletSampling(Kernel):
                     elif a == 0:
                         raise TypeError("a cannot be zero")
                     elif a < -1:
-                        raise TypeError("negative a smaller than -1 have " "no meaning")
+                        raise TypeError("negative a smaller than -1 have no meaning")
 
                     if a == -1:
-                        fallback_map = {1: 1, 2: 2, 3: 4, 4: 8, 5: 19, 6: 53, 7: 209, 8: 1253, 9: 13599}
+                        fallback_map = {
+                            1: 1,
+                            2: 2,
+                            3: 4,
+                            4: 8,
+                            5: 19,
+                            6: 53,
+                            7: 209,
+                            8: 1253,
+                            9: 13599,
+                        }
                         if k > 9:
                             warnings.warn(
                                 "warning for such size number of isomorphisms "
@@ -198,14 +213,18 @@ class GraphletSampling(Kernel):
                             # Use interpolations
 
                             isomorphism_prediction = interp1d(
-                                list(fallback_map.keys()), list(itervalues(fallback_map)), kind="cubic"
+                                list(fallback_map.keys()),
+                                list(itervalues(fallback_map)),
+                                kind="cubic",
                             )
                             a = isomorphism_prediction(k)
                         else:
                             a = fallback_map[k]
 
                     # and calculate number of samples
-                    n_samples = math.ceil(2 * (a * np.log10(2) + np.log10(1 / delta)) / (epsilon**2))
+                    n_samples = math.ceil(
+                        2 * (a * np.log10(2) + np.log10(1 / delta)) / (epsilon**2)
+                    )
 
                     sample_graphlets = sample_graphlets_probabilistic
                 else:

@@ -17,7 +17,7 @@ from sklearn.preprocessing import normalize as normalizer
 from sklearn.utils import check_random_state
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 
 
 def _dot(x, y):
@@ -67,7 +67,17 @@ class Propagation(Kernel):
     _graph_format = "adjacency"
     attr_ = False
 
-    def __init__(self, n_jobs=None, verbose=False, normalize=False, random_state=None, metric=_dot, M="TV", t_max=5, w=0.01):
+    def __init__(
+        self,
+        n_jobs=None,
+        verbose=False,
+        normalize=False,
+        random_state=None,
+        metric=_dot,
+        M="TV",
+        t_max=5,
+        w=0.01,
+    ):
         """Initialise a propagation kernel."""
         super(Propagation, self).__init__(n_jobs=n_jobs, verbose=verbose, normalize=normalize)
 
@@ -76,7 +86,9 @@ class Propagation(Kernel):
         self.t_max = t_max
         self.w = w
         self.metric = metric
-        self._initialized.update({"M": False, "t_max": False, "w": False, "random_state": False, "metric": False})
+        self._initialized.update(
+            {"M": False, "t_max": False, "w": False, "random_state": False, "metric": False}
+        )
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
@@ -188,9 +200,19 @@ class Propagation(Kernel):
 
                 if T is not None:
                     if T.shape[0] != T.shape[1]:
-                        raise TypeError("Transition matrix on index" + " " + str(idx) + "must be " + "a square matrix.")
+                        raise TypeError(
+                            "Transition matrix on index"
+                            + " "
+                            + str(idx)
+                            + "must be "
+                            + "a square matrix."
+                        )
                     if T.shape[0] != g.nv():
-                        raise TypeError("Propagation matrix must " + "have the same dimension " + "as the number of vertices.")
+                        raise TypeError(
+                            "Propagation matrix must "
+                            + "have the same dimension "
+                            + "as the number of vertices."
+                        )
                 else:
                     T = g.get_adjacency_matrix()
 
@@ -217,7 +239,9 @@ class Propagation(Kernel):
             elif self._method_calling == 3:
                 new_elements = labels - self._parent_labels
                 if len(new_elements) > 0:
-                    new_enum_labels = iter((l, i) for (i, l) in enumerate(list(new_elements), len(self._enum_labels)))
+                    new_enum_labels = iter(
+                        (l, i) for (i, l) in enumerate(list(new_elements), len(self._enum_labels))
+                    )
                     enum_labels = dict(chain(iteritems(self._enum_labels), new_enum_labels))
                 else:
                     enum_labels = self._enum_labels
@@ -280,7 +304,8 @@ class Propagation(Kernel):
                             iter(
                                 (j, i)
                                 for i, j in enumerate(
-                                    filterfalse(lambda x: x in self._hd[t], np.unique(hashes)), len(self._hd[t])
+                                    filterfalse(lambda x: x in self._hd[t], np.unique(hashes)),
+                                    len(self._hd[t]),
                                 )
                             ),
                         )
@@ -316,7 +341,8 @@ class Propagation(Kernel):
                             iter(
                                 (j, i)
                                 for i, j in enumerate(
-                                    filterfalse(lambda x: x in self._hd[t], np.unique(hashes)), len(self._hd[t])
+                                    filterfalse(lambda x: x in self._hd[t], np.unique(hashes)),
+                                    len(self._hd[t]),
                                 )
                             ),
                         )
@@ -334,14 +360,26 @@ class Propagation(Kernel):
 
                     # calculate hashes for the remaining
                     hashes = self.calculate_LSH(P[vertices_p, :], u, self._b[t])
-                    hd = dict(chain(iteritems(hd), iter((j, i) for i, j in enumerate(hashes, len(hd)))))
+                    hd = dict(
+                        chain(iteritems(hd), iter((j, i) for i, j in enumerate(hashes, len(hd))))
+                    )
 
                     features_p = np.vectorize(lambda i: hd[i], otypes=[int])(hashes)
 
                     # Accumulate the results
                     for k in range(n):
-                        A = Counter(features[np.logical_and(indexes[k] <= vertices, vertices <= indexes[k + 1])])
-                        B = Counter(features_p[np.logical_and(indexes[k] <= vertices_p, vertices_p <= indexes[k + 1])])
+                        A = Counter(
+                            features[
+                                np.logical_and(indexes[k] <= vertices, vertices <= indexes[k + 1])
+                            ]
+                        )
+                        B = Counter(
+                            features_p[
+                                np.logical_and(
+                                    indexes[k] <= vertices_p, vertices_p <= indexes[k + 1]
+                                )
+                            ]
+                        )
                         phi[k][t] = A + B
 
                     # calculate the Propagation matrix if needed
@@ -428,10 +466,27 @@ class PropagationAttr(Propagation):
     _graph_format = "adjacency"
     attr_ = True
 
-    def __init__(self, n_jobs=None, verbose=False, normalize=False, random_state=None, metric=_dot, M="L1", t_max=5, w=4):
+    def __init__(
+        self,
+        n_jobs=None,
+        verbose=False,
+        normalize=False,
+        random_state=None,
+        metric=_dot,
+        M="L1",
+        t_max=5,
+        w=4,
+    ):
         """Initialise a propagation kernel."""
         super(PropagationAttr, self).__init__(
-            n_jobs=n_jobs, verbose=verbose, normalize=normalize, random_state=random_state, metric=metric, M=M, t_max=t_max, w=w
+            n_jobs=n_jobs,
+            verbose=verbose,
+            normalize=normalize,
+            random_state=random_state,
+            metric=metric,
+            M=M,
+            t_max=t_max,
+            w=w,
         )
 
     def initialize(self):
@@ -493,9 +548,19 @@ class PropagationAttr(Propagation):
 
                 if T is not None:
                     if T.shape[0] != T.shape[1]:
-                        raise TypeError("Transition matrix on index" + " " + str(idx) + "must be " + "a square matrix.")
+                        raise TypeError(
+                            "Transition matrix on index"
+                            + " "
+                            + str(idx)
+                            + "must be "
+                            + "a square matrix."
+                        )
                     if T.shape[0] != g.nv():
-                        raise TypeError("Propagation matrix must " + "have the same dimension " + "as the number of vertices.")
+                        raise TypeError(
+                            "Propagation matrix must "
+                            + "have the same dimension "
+                            + "as the number of vertices."
+                        )
                 else:
                     T = g.get_adjacency_matrix()
 
@@ -505,7 +570,9 @@ class PropagationAttr(Propagation):
                 try:
                     attributes = np.array([attr[j] for j in range(nv)])
                 except TypeError:
-                    raise TypeError("All attributes of a single graph should have the same dimension.")
+                    raise TypeError(
+                        "All attributes of a single graph should have the same dimension."
+                    )
 
                 Attr.append(attributes)
                 indexes.append(indexes[-1] + nv)
@@ -519,7 +586,9 @@ class PropagationAttr(Propagation):
                 self._dim = P.shape[1]
             else:
                 if self._dim != P.shape[1]:
-                    raise ValueError("transform attribute vectors should" "have the same dimension as in fit")
+                    raise ValueError(
+                        "transform attribute vectors shouldhave the same dimension as in fit"
+                    )
 
             if n == 0:
                 raise ValueError("Parsed input is empty")
@@ -572,7 +641,10 @@ class PropagationAttr(Propagation):
                             iter(
                                 (j, i)
                                 for i, j in enumerate(
-                                    filterfalse(lambda x: x in self._hd[t], {tuple(l) for l in hashes}), len(self._hd[t])
+                                    filterfalse(
+                                        lambda x: x in self._hd[t], {tuple(l) for l in hashes}
+                                    ),
+                                    len(self._hd[t]),
                                 )
                             ),
                         )
@@ -623,17 +695,30 @@ if __name__ == "__main__":
     from grakel.datasets import fetch_dataset
 
     # Create an argument parser for the installer of pynauty
-    parser = argparse.ArgumentParser(description="Measuring classification accuracy " "on multiscale_laplacian_fast")
+    parser = argparse.ArgumentParser(
+        description="Measuring classification accuracy on multiscale_laplacian_fast"
+    )
 
-    parser.add_argument("--dataset", help="choose the datset you want the tests to be executed", type=str, default=None)
+    parser.add_argument(
+        "--dataset",
+        help="choose the datset you want the tests to be executed",
+        type=str,
+        default=None,
+    )
 
     parser.add_argument("--full", help="fit_transform the full graph", action="store_true")
 
-    parser.add_argument("--attr", help="define if the attributed kernel will be used", action="store_true")
+    parser.add_argument(
+        "--attr", help="define if the attributed kernel will be used", action="store_true"
+    )
 
-    parser.add_argument("--tmax", help="choose the datset you want the tests to be executed", type=int, default=5)
+    parser.add_argument(
+        "--tmax", help="choose the datset you want the tests to be executed", type=int, default=5
+    )
 
-    parser.add_argument("--w", help="choose the datset you want the tests to be executed", type=float, default=0.01)
+    parser.add_argument(
+        "--w", help="choose the datset you want the tests to be executed", type=float, default=0.01
+    )
 
     # Get the dataset name
     args = parser.parse_args()
@@ -649,7 +734,9 @@ if __name__ == "__main__":
             dataset_name = "MUTAG"
 
     # The baseline dataset for node/edge-attributes
-    dataset_attr = fetch_dataset(dataset_name, with_classes=True, prefer_attr_nodes=has_attributes, verbose=True)
+    dataset_attr = fetch_dataset(
+        dataset_name, with_classes=True, prefer_attr_nodes=has_attributes, verbose=True
+    )
 
     from time import time
 
@@ -744,5 +831,9 @@ if __name__ == "__main__":
 
     print("Mean values of", niter, "iterations:")
     print(
-        "Propagation", "> Accuracy:", str(round(np.mean(stats["acc"]) * 100, 2)), "% | Took:", sec_to_time(np.mean(stats["time"]))
+        "Propagation",
+        "> Accuracy:",
+        str(round(np.mean(stats["acc"]) * 100, 2)),
+        "% | Took:",
+        sec_to_time(np.mean(stats["time"])),
     )

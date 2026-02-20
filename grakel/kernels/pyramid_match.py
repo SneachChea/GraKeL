@@ -14,7 +14,7 @@ from six import iteritems, itervalues
 from six.moves.collections_abc import Iterable
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 
 
 class PyramidMatch(Kernel):
@@ -65,12 +65,12 @@ class PyramidMatch(Kernel):
 
         if not self._initialized["L"]:
             if type(self.L) is not int or self.L < 0:
-                raise TypeError("L: the number of levels must be an integer " "bigger equal to 0")
+                raise TypeError("L: the number of levels must be an integer bigger equal to 0")
             self._initialized["L"] = True
 
         if not self._initialized["d"]:
             if type(self.d) is not int or self.d < 1:
-                raise TypeError("d: hypercube dimension must be an " "integer bigger than 1")
+                raise TypeError("d: hypercube dimension must be an integer bigger than 1")
             self._initialized["d"] = True
 
     def parse_input(self, X):
@@ -103,7 +103,11 @@ class PyramidMatch(Kernel):
                 is_iter = isinstance(x, Iterable)
                 if is_iter:
                     x = list(x)
-                if is_iter and (len(x) == 0 or (len(x) >= 1 and not self.with_labels) or (len(x) >= 2 and self.with_labels)):
+                if is_iter and (
+                    len(x) == 0
+                    or (len(x) >= 1 and not self.with_labels)
+                    or (len(x) >= 2 and self.with_labels)
+                ):
                     if len(x) == 0:
                         warnings.warn("Ignoring empty element on index: " + str(idx))
                         continue
@@ -163,7 +167,10 @@ class PyramidMatch(Kernel):
                     labels |= set(itervalues(L))
                 rest_labels = labels - set(self._labels.keys())
                 nouveau_labels = dict(
-                    chain(iteritems(self._labels), ((j, i) for (i, j) in enumerate(rest_labels, len(self._labels))))
+                    chain(
+                        iteritems(self._labels),
+                        ((j, i) for (i, j) in enumerate(rest_labels, len(self._labels))),
+                    )
                 )
                 return self._histogram_calculation(Us, Ls, nouveau_labels)
         else:

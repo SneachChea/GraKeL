@@ -20,7 +20,7 @@ from scipy.sparse.linalg import LinearOperator, cg
 from six.moves.collections_abc import Iterable
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 
 
 class RandomWalk(Kernel):
@@ -57,7 +57,14 @@ class RandomWalk(Kernel):
     _graph_format = "adjacency"
 
     def __init__(
-        self, n_jobs=None, normalize=False, verbose=False, lamda=0.1, method_type="fast", kernel_type="geometric", p=None
+        self,
+        n_jobs=None,
+        normalize=False,
+        verbose=False,
+        lamda=0.1,
+        method_type="fast",
+        kernel_type="geometric",
+        p=None,
     ):
         """Initialise a random_walk kernel."""
         # setup valid parameters and initialise from parent
@@ -71,7 +78,9 @@ class RandomWalk(Kernel):
         self.kernel_type = kernel_type
         self.p = p
         self.lamda = lamda
-        self._initialized.update({"method_type": False, "kernel_type": False, "p": False, "lamda": False})
+        self._initialized.update(
+            {"method_type": False, "kernel_type": False, "p": False, "lamda": False}
+        )
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
@@ -92,7 +101,7 @@ class RandomWalk(Kernel):
 
         if not self._initialized["kernel_type"]:
             if self.kernel_type not in ["geometric", "exponential"]:
-                raise ValueError('unsupported kernel type: either "geometric" ' 'or "exponential"')
+                raise ValueError('unsupported kernel type: either "geometric" or "exponential"')
 
         if not self._initialized["p"]:
             if self.p is not None:
@@ -112,7 +121,7 @@ class RandomWalk(Kernel):
                             power *= self.lamda
                             self.mu_.append(power)
                 else:
-                    raise TypeError("p must be a positive integer bigger than " "zero or nonetype")
+                    raise TypeError("p must be a positive integer bigger than zero or nonetype")
                 self._initialized["kernel_type"] = True
 
         if not self._initialized["lamda"]:
@@ -219,7 +228,9 @@ class RandomWalk(Kernel):
                     S = expm(self.lamda * XY).T
 
             return np.sum(S)
-        elif self.method_type == "fast" and (self.p is not None or self.kernel_type == "exponential"):
+        elif self.method_type == "fast" and (
+            self.p is not None or self.kernel_type == "exponential"
+        ):
             # Spectral demoposition algorithm as presented in
             # [Vishwanathan et al., 2006] p.13, s.4.4, with
             # complexity of O((|E|+|V|)|E||V|^2) for graphs
@@ -317,7 +328,14 @@ class RandomWalkLabeled(RandomWalk):
     _graph_format = "adjacency"
 
     def __init__(
-        self, n_jobs=None, normalize=False, verbose=False, lamda=0.1, method_type="fast", kernel_type="geometric", p=None
+        self,
+        n_jobs=None,
+        normalize=False,
+        verbose=False,
+        lamda=0.1,
+        method_type="fast",
+        kernel_type="geometric",
+        p=None,
     ):
         """Initialise a labeled random_walk kernel."""
         # Initialise from parent
@@ -384,7 +402,9 @@ class RandomWalkLabeled(RandomWalk):
                 labels = set(Lx)
                 Lx = np.array(Lx)
                 for t in product(labels, labels):
-                    selector = np.matmul(np.expand_dims(Lx == t[0], axis=1), np.expand_dims(Lx == t[1], axis=0))
+                    selector = np.matmul(
+                        np.expand_dims(Lx == t[0], axis=1), np.expand_dims(Lx == t[1], axis=0)
+                    )
                     amss[t] = Ax * selector
                 out.append((amss, s))
 
@@ -422,7 +442,11 @@ class RandomWalkLabeled(RandomWalk):
 
         mn = xs * ys
 
-        if self.kernel_type == "exponential" or self.method_type == "baseline" or self.p is not None:
+        if (
+            self.kernel_type == "exponential"
+            or self.method_type == "baseline"
+            or self.p is not None
+        ):
             # Claculate Kronecker product matrix
             XY = np.zeros(shape=(mn, mn))
             for k in ck:

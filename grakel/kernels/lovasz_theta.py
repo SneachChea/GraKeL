@@ -16,7 +16,7 @@ from six.moves.collections_abc import Iterable
 from sklearn.utils import check_random_state
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 from grakel.tools import distribute_samples
 
 cvxopt_installed = True
@@ -87,7 +87,9 @@ class LovaszTheta(Kernel):
         """Initialise a lovasz_theta kernel."""
         # setup valid parameters and initialise from parent
         if not cvxopt_installed:
-            raise ImportError("cvxopt should be installed for the " "computation of the Lovasz-Theta Kernel.")
+            raise ImportError(
+                "cvxopt should be installed for the computation of the Lovasz-Theta Kernel."
+            )
 
         if sys.platform.startswith("win"):
             warnings.warn(
@@ -103,7 +105,13 @@ class LovaszTheta(Kernel):
         self.random_state = random_state
         self.max_dim = max_dim
         self._initialized.update(
-            {"n_samples": False, "subsets_size_range": False, "base_kernel": False, "random_state": False, "max_dim": False}
+            {
+                "n_samples": False,
+                "subsets_size_range": False,
+                "base_kernel": False,
+                "random_state": False,
+                "max_dim": False,
+            }
         )
 
     def initialize(self):
@@ -112,7 +120,7 @@ class LovaszTheta(Kernel):
 
         if not self._initialized["n_samples"]:
             if self.n_samples <= 0 or type(self.n_samples) is not int:
-                raise TypeError("n_samples must an integer be bigger than " "zero")
+                raise TypeError("n_samples must an integer be bigger than zero")
             self._initialized["n_samples"] = True
 
         if not self._initialized["subsets_size_range"]:
@@ -124,7 +132,9 @@ class LovaszTheta(Kernel):
                 or self.subsets_size_range[0] <= 0
             ):
                 raise TypeError(
-                    "subsets_size_range subset size range" "must be a tuple of two integers in " "increasing order, bigger than 1"
+                    "subsets_size_range subset size range"
+                    "must be a tuple of two integers in "
+                    "increasing order, bigger than 1"
                 )
             self._initialized["subsets_size_range"] = True
 
@@ -205,7 +215,9 @@ class LovaszTheta(Kernel):
                         "than the one found in fit. To avoid that use max_dim parameter."
                     )
                 else:
-                    raise ValueError("max_dim should correspond to the " "biggest graph inside the dataset")
+                    raise ValueError(
+                        "max_dim should correspond to the biggest graph inside the dataset"
+                    )
 
             out = list()
             for A in adjm:
@@ -259,7 +271,9 @@ class LovaszTheta(Kernel):
 
         # Calculate level dictionary with lovasz values
         phi = np.zeros(shape=(self.subsets_size_range[1] - self.subsets_size_range[0] + 1, 1))
-        for i, level in enumerate(range(self.subsets_size_range[0], self.subsets_size_range[1] + 1)):
+        for i, level in enumerate(
+            range(self.subsets_size_range[0], self.subsets_size_range[1] + 1)
+        ):
             v = samples_on_subsets.get(level, None)
             if v is not None:
                 level_values = list()

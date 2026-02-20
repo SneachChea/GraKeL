@@ -18,7 +18,7 @@ from six.moves.collections_abc import Iterable
 from sklearn.utils import check_random_state
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 
 positive_eigenvalue_limit = float("+1e-6")
 
@@ -60,10 +60,21 @@ class MultiscaleLaplacian(Kernel):
     _graph_format = "adjacency"
 
     def __init__(
-        self, n_jobs=None, normalize=False, verbose=False, random_state=None, L=3, P=10, gamma=0.01, heta=0.01, n_samples=50
+        self,
+        n_jobs=None,
+        normalize=False,
+        verbose=False,
+        random_state=None,
+        L=3,
+        P=10,
+        gamma=0.01,
+        heta=0.01,
+        n_samples=50,
     ):
         """Initialise a `multiscale_laplacian` kernel."""
-        super(MultiscaleLaplacian, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
+        super(MultiscaleLaplacian, self).__init__(
+            n_jobs=n_jobs, normalize=normalize, verbose=verbose
+        )
 
         self.random_state = random_state
         self.gamma = gamma
@@ -72,7 +83,14 @@ class MultiscaleLaplacian(Kernel):
         self.P = P
         self.n_samples = n_samples
         self._initialized.update(
-            {"random_state": False, "gamma": False, "heta": False, "L": False, "n_samples": False, "P": False}
+            {
+                "random_state": False,
+                "gamma": False,
+                "heta": False,
+                "L": False,
+                "n_samples": False,
+                "P": False,
+            }
         )
 
     def initialize(self):
@@ -161,14 +179,18 @@ class MultiscaleLaplacian(Kernel):
                     x.desired_format(self._graph_format)
                 else:
                     raise TypeError(
-                        "each element of X must be either a " "graph or an iterable with at least 1 " "and at most 3 elements\n"
+                        "each element of X must be either a "
+                        "graph or an iterable with at least 1 "
+                        "and at most 3 elements\n"
                     )
                 phi_d = x.get_labels()
                 A = x.get_adjacency_matrix()
                 try:
                     phi = np.array([list(phi_d[i]) for i in range(A.shape[0])])
                 except TypeError:
-                    raise TypeError("Features must be iterable and castable " "in total to a numpy array.")
+                    raise TypeError(
+                        "Features must be iterable and castable in total to a numpy array."
+                    )
 
                 Lap = laplacian(A).astype(float)
                 _increment_diagonal_(Lap, self.heta)
@@ -182,7 +204,9 @@ class MultiscaleLaplacian(Kernel):
             # Define a function for calculating the S's of subgraphs of each iteration
             def calculate_C(k, j, l):
                 if type(neighborhoods[k]) is Graph:
-                    neighborhoods[k] = neighborhoods[k].produce_neighborhoods(r=self.L, sort_neighbors=False)
+                    neighborhoods[k] = neighborhoods[k].produce_neighborhoods(
+                        r=self.L, sort_neighbors=False
+                    )
 
                 indexes = neighborhoods[k][l][j]
                 L = laplacian(data[k][0][indexes, :][:, indexes]).astype(float)
@@ -232,7 +256,9 @@ class MultiscaleLaplacian(Kernel):
                         K_proj[k][j, m] = K[m, m] = self.pairwise_operation(C[m], C[m])
                         for s, (k2, j2) in enumerate(vs):
                             if s < m:
-                                K[s, m] = K[m, s] = K_proj[k2][j2, m] = K_proj[k][j, s] = self.pairwise_operation(C[s], C[m])
+                                K[s, m] = K[m, s] = K_proj[k2][j2, m] = K_proj[k][j, s] = (
+                                    self.pairwise_operation(C[s], C[m])
+                                )
                             else:
                                 break
 

@@ -11,7 +11,7 @@ import numpy as np
 from six.moves.collections_abc import Iterable
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 from grakel.kernels._c_functions import sm_kernel
 
 
@@ -55,7 +55,9 @@ class SubgraphMatching(Kernel):
 
     _graph_format = "all"
 
-    def __init__(self, n_jobs=None, verbose=False, normalize=False, k=5, kv=_dirac, ke=_dirac, lw="uniform"):
+    def __init__(
+        self, n_jobs=None, verbose=False, normalize=False, k=5, kv=_dirac, ke=_dirac, lw="uniform"
+    ):
         """Initialise a `subgraph_matching` kernel."""
         super(SubgraphMatching, self).__init__(n_jobs=n_jobs, verbose=verbose, normalize=normalize)
 
@@ -98,7 +100,9 @@ class SubgraphMatching(Kernel):
             elif self.lw == "decreasing":
                 self.lambdas_ = np.full((1, k), 1.0) / np.arange(1.0, float(k) + 1.0).reshape(1, k)
             elif self.lw == "strong_decreasing":
-                self.lambdas_ = np.full((1, k), 1.0) / np.square(np.arange(1.0, float(k) + 1.0)).reshape(1, k)
+                self.lambdas_ = np.full((1, k), 1.0) / np.square(
+                    np.arange(1.0, float(k) + 1.0)
+                ).reshape(1, k)
             elif callable(self.lw):
                 try:
                     self.lambdas_ = np.array([self.lw(i) for i in range(k)]).reshape((1, k))
@@ -190,7 +194,9 @@ class SubgraphMatching(Kernel):
                 n = g.nv()
                 E = g.get_edge_dictionary()
                 L = g.get_labels(purpose="dictionary", return_none=(self.kv is None))
-                Le = g.get_labels(purpose="dictionary", label_type="edge", return_none=(self.ke is None))
+                Le = g.get_labels(
+                    purpose="dictionary", label_type="edge", return_none=(self.ke is None)
+                )
                 Er = set((a, b) for a in E.keys() for b in E[a].keys() if a != b)
 
                 i += 1
@@ -219,7 +225,18 @@ if __name__ == "__main__":
         k.transform(
             [
                 (
-                    {(1, 2), (2, 3), (3, 4), (3, 5), (5, 6), (2, 1), (3, 2), (4, 3), (5, 3), (6, 5)},
+                    {
+                        (1, 2),
+                        (2, 3),
+                        (3, 4),
+                        (3, 5),
+                        (5, 6),
+                        (2, 1),
+                        (3, 2),
+                        (4, 3),
+                        (5, 3),
+                        (6, 5),
+                    },
                     {1: "O", 2: "C", 3: "N", 4: "C", 5: "C", 6: "O"},
                     {
                         (1, 2): ("O", "C"),

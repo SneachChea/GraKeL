@@ -17,7 +17,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 from grakel.kernels.vertex_histogram import VertexHistogram
 
 
@@ -52,7 +52,9 @@ class HadamardCode(Kernel):
 
     _graph_format = "auto"
 
-    def __init__(self, n_jobs=None, verbose=False, normalize=False, n_iter=5, base_graph_kernel=None):
+    def __init__(
+        self, n_jobs=None, verbose=False, normalize=False, n_iter=5, base_graph_kernel=None
+    ):
         """Initialise a `hadamard_code` kernel."""
         super(HadamardCode, self).__init__(n_jobs=n_jobs, verbose=verbose, normalize=normalize)
 
@@ -73,10 +75,14 @@ class HadamardCode(Kernel):
                 try:
                     base_graph_kernel, params = base_graph_kernel
                 except Exception:
-                    raise TypeError("Base kernel was not formulated in " "the correct way. " "Check documentation.")
+                    raise TypeError(
+                        "Base kernel was not formulated in the correct way. Check documentation."
+                    )
 
                 if not (type(base_graph_kernel) is type and issubclass(base_graph_kernel, Kernel)):
-                    raise TypeError("The first argument must be a valid " "grakel.kernel.kernel Object")
+                    raise TypeError(
+                        "The first argument must be a valid grakel.kernel.kernel Object"
+                    )
                 if type(params) is not dict:
                     raise ValueError(
                         "If the second argument of base "
@@ -130,9 +136,15 @@ class HadamardCode(Kernel):
             if self._method_calling in [1, 2]:
                 nl, labels_enum, base_graph_kernel = 0, dict(), dict()
                 for kidx in range(self.n_iter):
-                    base_graph_kernel[kidx] = self.base_graph_kernel_[0](**self.base_graph_kernel_[1])
+                    base_graph_kernel[kidx] = self.base_graph_kernel_[0](
+                        **self.base_graph_kernel_[1]
+                    )
             elif self._method_calling == 3:
-                nl, labels_enum, base_graph_kernel = len(self._labels_enum), dict(self._labels_enum), self.X
+                nl, labels_enum, base_graph_kernel = (
+                    len(self._labels_enum),
+                    dict(self._labels_enum),
+                    self.X,
+                )
             inp = list()
             neighbors = list()
             for idx, x in enumerate(iter(X)):
@@ -149,12 +161,16 @@ class HadamardCode(Kernel):
                             if len(x) > 3:
                                 extra = tuple(x[3:])
                             x = Graph(x[0], x[1], x[2], graph_format=self._graph_format)
-                            extra = (x.get_labels(purpose="any", label_type="edge", return_none=True),) + extra
+                            extra = (
+                                x.get_labels(purpose="any", label_type="edge", return_none=True),
+                            ) + extra
                         else:
                             x = Graph(x[0], x[1], {}, graph_format=self._graph_format)
                             extra = tuple()
                 elif type(x) is Graph:
-                    el = x.get_labels(purpose=self._graph_format, label_type="edge", return_none=True)
+                    el = x.get_labels(
+                        purpose=self._graph_format, label_type="edge", return_none=True
+                    )
                     if el is None:
                         extra = tuple()
                     else:
@@ -206,11 +222,16 @@ class HadamardCode(Kernel):
                         for q in ns:
                             new_label[k] = np.add(new_label[k], old_label[q])
                     new_labels.append(new_label)
-                    new_graphs.append((obj, {i: tuple(j) for (i, j) in iteritems(new_label)}) + extra)
+                    new_graphs.append(
+                        (obj, {i: tuple(j) for (i, j) in iteritems(new_label)}) + extra
+                    )
                 yield new_graphs
 
         if self._method_calling in [1, 2]:
-            base_graph_kernel = {i: self.base_graph_kernel_[0](**self.base_graph_kernel_[1]) for i in range(self.n_iter)}
+            base_graph_kernel = {
+                i: self.base_graph_kernel_[0](**self.base_graph_kernel_[1])
+                for i in range(self.n_iter)
+            }
 
         if self._parallel is None:
             # Add the zero iteration element
@@ -228,19 +249,26 @@ class HadamardCode(Kernel):
                 K = np.sum(values, axis=0)
         else:
             if self._method_calling == 1:
-                self._parallel(joblib.delayed(efit)(base_graph_kernel[i], g) for (i, g) in enumerate(generate_graphs(labels)))
+                self._parallel(
+                    joblib.delayed(efit)(base_graph_kernel[i], g)
+                    for (i, g) in enumerate(generate_graphs(labels))
+                )
             elif self._method_calling == 2:
                 # Calculate the kernel marix with parallelization
                 K = np.sum(
                     self._parallel(
-                        joblib.delayed(efit_transform)(base_graph_kernel[i], g) for (i, g) in enumerate(generate_graphs(labels))
+                        joblib.delayed(efit_transform)(base_graph_kernel[i], g)
+                        for (i, g) in enumerate(generate_graphs(labels))
                     ),
                     axis=0,
                 )
             elif self._method_calling == 3:
                 # Calculate the kernel marix with parallelization
                 K = np.sum(
-                    self._parallel(joblib.delayed(etransform)(self.X[i], g) for (i, g) in enumerate(generate_graphs(labels))),
+                    self._parallel(
+                        joblib.delayed(etransform)(self.X[i], g)
+                        for (i, g) in enumerate(generate_graphs(labels))
+                    ),
                     axis=0,
                 )
 

@@ -14,7 +14,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 
 
 class WeisfeilerLehmanOptimalAssignment(Kernel):
@@ -54,7 +54,9 @@ class WeisfeilerLehmanOptimalAssignment(Kernel):
 
     def __init__(self, n_jobs=None, verbose=False, normalize=False, n_iter=5, sparse=False):
         """Initialise a `weisfeiler_lehman` kernel."""
-        super(WeisfeilerLehmanOptimalAssignment, self).__init__(n_jobs=n_jobs, verbose=verbose, normalize=normalize)
+        super(WeisfeilerLehmanOptimalAssignment, self).__init__(
+            n_jobs=n_jobs, verbose=verbose, normalize=normalize
+        )
 
         self.n_iter = n_iter
         self.sparse = sparse
@@ -119,7 +121,11 @@ class WeisfeilerLehmanOptimalAssignment(Kernel):
                             if len(x) > 3:
                                 extra = tuple(x[3:])
                             x = Graph(x[0], x[1], x[2], graph_format=self._graph_format)
-                            extra = (x.get_labels(purpose=self._graph_format, label_type="edge", return_none=True),) + extra
+                            extra = (
+                                x.get_labels(
+                                    purpose=self._graph_format, label_type="edge", return_none=True
+                                ),
+                            ) + extra
                         else:
                             x = Graph(x[0], x[1], {}, graph_format=self._graph_format)
                             extra = tuple()
@@ -179,7 +185,9 @@ class WeisfeilerLehmanOptimalAssignment(Kernel):
                 # Keep for each node the temporary
                 L_temp[j] = dict()
                 for v in Gs_ed[j].keys():
-                    credential = str(L[j][v]) + "," + str(sorted([L[j][n] for n in Gs_ed[j][v].keys()]))
+                    credential = (
+                        str(L[j][v]) + "," + str(sorted([L[j][n] for n in Gs_ed[j][v].keys()]))
+                    )
                     L_temp[j][v] = credential
                     new_previous_label_set.add((credential, L[j][v]))
 
@@ -329,12 +337,17 @@ class WeisfeilerLehmanOptimalAssignment(Kernel):
                     elif type(x) is Graph:
                         x.desired_format("dictionary")
                     else:
-                        raise ValueError("each element of X must have at " + "least one and at most 3 elements\n")
+                        raise ValueError(
+                            "each element of X must have at "
+                            + "least one and at most 3 elements\n"
+                        )
                     Gs_ed[nx] = x.get_edge_dictionary()
                     L[nx] = x.get_labels(purpose="dictionary")
 
                     # Hold all the distinct values
-                    distinct_values |= set(v for v in itervalues(L[nx]) if v not in self._inv_labels[0])
+                    distinct_values |= set(
+                        v for v in itervalues(L[nx]) if v not in self._inv_labels[0]
+                    )
                     nx += 1
                 if nx == 0:
                     raise ValueError("parsed input is empty")
@@ -365,7 +378,9 @@ class WeisfeilerLehmanOptimalAssignment(Kernel):
                 # Keep for each node the temporary
                 L_temp[j] = dict()
                 for v in Gs_ed[j].keys():
-                    credential = str(L[j][v]) + "," + str(sorted([L[j][n] for n in Gs_ed[j][v].keys()]))
+                    credential = (
+                        str(L[j][v]) + "," + str(sorted([L[j][n] for n in Gs_ed[j][v].keys()]))
+                    )
                     L_temp[j][v] = credential
                     if credential not in self._inv_labels[i]:
                         new_previous_label_set.add((credential, L[j][v]))
@@ -373,7 +388,9 @@ class WeisfeilerLehmanOptimalAssignment(Kernel):
             # Calculate the new label_set
             WL_labels_inverse = dict()
             if len(new_previous_label_set) > 0:
-                for dv, previous_label in sorted(list(new_previous_label_set), key=lambda tup: tup[0]):
+                for dv, previous_label in sorted(
+                    list(new_previous_label_set), key=lambda tup: tup[0]
+                ):
                     WL_labels_inverse[dv] = label_count
                     self._insert_into_hierarchy(label_count, previous_label)
                     label_count += 1

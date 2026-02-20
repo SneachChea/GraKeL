@@ -12,7 +12,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 
 
 class ShortestPathAttr(Kernel):
@@ -42,7 +42,9 @@ class ShortestPathAttr(Kernel):
 
     """
 
-    def __init__(self, n_jobs=None, normalize=False, verbose=False, algorithm_type="auto", metric=np.dot):
+    def __init__(
+        self, n_jobs=None, normalize=False, verbose=False, algorithm_type="auto", metric=np.dot
+    ):
         """Initialise a `shortest_path_attr` kernel."""
         super(ShortestPathAttr, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
 
@@ -61,7 +63,9 @@ class ShortestPathAttr(Kernel):
             elif self.algorithm_type == "dijkstra":
                 self._graph_format = "dictionary"
             else:
-                raise ValueError("Unsupported value " + str(self.algorithm_type) + ' for "algorithm_type"')
+                raise ValueError(
+                    "Unsupported value " + str(self.algorithm_type) + ' for "algorithm_type"'
+                )
             self._initialized["algorithm_type"] = True
 
         if not self._initialized["metric"]:
@@ -102,7 +106,9 @@ class ShortestPathAttr(Kernel):
                         warnings.warn("Ignoring empty element" + " on index: " + str(i))
                         continue
                     else:
-                        S, L = Graph(x[0], x[1], {}, self._graph_format).build_shortest_path_matrix(self.algorithm_type)
+                        S, L = Graph(
+                            x[0], x[1], {}, self._graph_format
+                        ).build_shortest_path_matrix(self.algorithm_type)
                 elif type(x) is Graph:
                     S, L = x.build_shortest_path_matrix(self.algorithm_type)
                 else:
@@ -150,7 +156,9 @@ class ShortestPathAttr(Kernel):
                         if k == m:
                             continue
                         if Sx[i, j] == Sy[k, m] and Sx[i, j] != float("Inf"):
-                            kernel += self.metric(phi_x[i], phi_y[k]) * self.metric(phi_x[j], phi_y[m])
+                            kernel += self.metric(phi_x[i], phi_y[k]) * self.metric(
+                                phi_x[j], phi_y[m]
+                            )
 
         return kernel
 
@@ -212,7 +220,9 @@ class ShortestPath(Kernel):
 
     _graph_bins = dict()
 
-    def __init__(self, n_jobs=None, normalize=False, verbose=False, with_labels=True, algorithm_type="auto"):
+    def __init__(
+        self, n_jobs=None, normalize=False, verbose=False, with_labels=True, algorithm_type="auto"
+    ):
         """Initialize a `shortest_path` kernel."""
         super(ShortestPath, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
 
@@ -429,22 +439,26 @@ class ShortestPath(Kernel):
                 is_iter = isinstance(x, Iterable)
                 if is_iter:
                     x = list(x)
-                if is_iter and (len(x) == 0 or (len(x) == 1 and not self.with_labels) or len(x) in [2, 3]):
+                if is_iter and (
+                    len(x) == 0 or (len(x) == 1 and not self.with_labels) or len(x) in [2, 3]
+                ):
                     if len(x) == 0:
                         warnings.warn("Ignoring empty element on index: " + str(idx))
                         continue
                     elif len(x) == 1:
-                        spm_data = Graph(x[0], {}, {}, self._graph_format).build_shortest_path_matrix(
-                            self.algorithm_type, labels=self._lt
-                        )
+                        spm_data = Graph(
+                            x[0], {}, {}, self._graph_format
+                        ).build_shortest_path_matrix(self.algorithm_type, labels=self._lt)
                     else:
-                        spm_data = Graph(x[0], x[1], {}, self._graph_format).build_shortest_path_matrix(
-                            self.algorithm_type, labels=self._lt
-                        )
+                        spm_data = Graph(
+                            x[0], x[1], {}, self._graph_format
+                        ).build_shortest_path_matrix(self.algorithm_type, labels=self._lt)
                 elif type(x) is Graph:
                     spm_data = x.build_shortest_path_matrix(self.algorithm_type, labels=self._lt)
                 else:
-                    raise TypeError("each element of X must have at least" + " one and at most 3 elements\n")
+                    raise TypeError(
+                        "each element of X must have at least" + " one and at most 3 elements\n"
+                    )
                 i += 1
 
                 S, L = self._decompose_input(spm_data)

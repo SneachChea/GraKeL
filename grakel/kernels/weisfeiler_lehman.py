@@ -14,7 +14,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 from grakel.kernels.vertex_histogram import VertexHistogram
 
 
@@ -56,7 +56,14 @@ class WeisfeilerLehman(Kernel):
 
     _graph_format = "dictionary"
 
-    def __init__(self, n_jobs=None, verbose=False, normalize=False, n_iter=5, base_graph_kernel=VertexHistogram):
+    def __init__(
+        self,
+        n_jobs=None,
+        verbose=False,
+        normalize=False,
+        n_iter=5,
+        base_graph_kernel=VertexHistogram,
+    ):
         """Initialise a `weisfeiler_lehman` kernel."""
         super(WeisfeilerLehman, self).__init__(n_jobs=n_jobs, verbose=verbose, normalize=normalize)
 
@@ -78,10 +85,14 @@ class WeisfeilerLehman(Kernel):
                 try:
                     base_graph_kernel, params = base_graph_kernel
                 except Exception:
-                    raise TypeError("Base kernel was not formulated in " "the correct way. " "Check documentation.")
+                    raise TypeError(
+                        "Base kernel was not formulated in the correct way. Check documentation."
+                    )
 
                 if not (type(base_graph_kernel) is type and issubclass(base_graph_kernel, Kernel)):
-                    raise TypeError("The first argument must be a valid " "grakel.kernel.kernel Object")
+                    raise TypeError(
+                        "The first argument must be a valid grakel.kernel.kernel Object"
+                    )
                 if type(params) is not dict:
                     raise ValueError(
                         "If the second argument of base "
@@ -149,14 +160,20 @@ class WeisfeilerLehman(Kernel):
                             if len(x) > 3:
                                 extra = tuple(x[3:])
                             x = Graph(x[0], x[1], x[2], graph_format=self._graph_format)
-                            extra = (x.get_labels(purpose=self._graph_format, label_type="edge", return_none=True),) + extra
+                            extra = (
+                                x.get_labels(
+                                    purpose=self._graph_format, label_type="edge", return_none=True
+                                ),
+                            ) + extra
                         else:
                             x = Graph(x[0], x[1], {}, graph_format=self._graph_format)
                             extra = tuple()
 
                 elif type(x) is Graph:
                     x.desired_format(self._graph_format)
-                    el = x.get_labels(purpose=self._graph_format, label_type="edge", return_none=True)
+                    el = x.get_labels(
+                        purpose=self._graph_format, label_type="edge", return_none=True
+                    )
                     if el is None:
                         extra = tuple()
                     else:
@@ -212,7 +229,9 @@ class WeisfeilerLehman(Kernel):
                     # Keep for each node the temporary
                     L_temp[j] = dict()
                     for v in Gs_ed[j].keys():
-                        credential = str(L[j][v]) + "," + str(sorted([L[j][n] for n in Gs_ed[j][v].keys()]))
+                        credential = (
+                            str(L[j][v]) + "," + str(sorted([L[j][n] for n in Gs_ed[j][v].keys()]))
+                        )
                         L_temp[j][v] = credential
                         label_set.add(credential)
 
@@ -233,7 +252,9 @@ class WeisfeilerLehman(Kernel):
                 self._inv_labels[i] = WL_labels_inverse
                 yield new_graphs
 
-        base_graph_kernel = {i: self._base_graph_kernel(**self._params) for i in range(self._n_iter)}
+        base_graph_kernel = {
+            i: self._base_graph_kernel(**self._params) for i in range(self._n_iter)
+        }
         if self._parallel is None:
             if self._method_calling == 1:
                 for i, g in enumerate(generate_graphs(label_count, WL_labels_inverse)):
@@ -349,14 +370,22 @@ class WeisfeilerLehman(Kernel):
                                 if len(x) > 3:
                                     extra = tuple(x[3:])
                                 x = Graph(x[0], x[1], x[2], graph_format=self._graph_format)
-                                extra = (x.get_labels(purpose=self._graph_format, label_type="edge", return_none=True),) + extra
+                                extra = (
+                                    x.get_labels(
+                                        purpose=self._graph_format,
+                                        label_type="edge",
+                                        return_none=True,
+                                    ),
+                                ) + extra
                             else:
                                 x = Graph(x[0], x[1], {}, graph_format=self._graph_format)
                                 extra = tuple()
 
                     elif type(x) is Graph:
                         x.desired_format("dictionary")
-                        el = x.get_labels(purpose=self._graph_format, label_type="edge", return_none=True)
+                        el = x.get_labels(
+                            purpose=self._graph_format, label_type="edge", return_none=True
+                        )
                         if el is None:
                             extra = tuple()
                         else:
@@ -373,7 +402,9 @@ class WeisfeilerLehman(Kernel):
 
                     # Hold all the distinct values
                     extras[nx] = extra
-                    distinct_values |= set(v for v in itervalues(L[nx]) if v not in self._inv_labels[0])
+                    distinct_values |= set(
+                        v for v in itervalues(L[nx]) if v not in self._inv_labels[0]
+                    )
                     nx += 1
                 if nx == 0:
                     raise ValueError("parsed input is empty")
@@ -405,7 +436,9 @@ class WeisfeilerLehman(Kernel):
                     # Keep for each node the temporary
                     L_temp[j] = dict()
                     for v in Gs_ed[j].keys():
-                        credential = str(L[j][v]) + "," + str(sorted([L[j][n] for n in Gs_ed[j][v].keys()]))
+                        credential = (
+                            str(L[j][v]) + "," + str(sorted([L[j][n] for n in Gs_ed[j][v].keys()]))
+                        )
                         L_temp[j][v] = credential
                         if credential not in self._inv_labels[i]:
                             label_set.add(credential)
@@ -440,7 +473,8 @@ class WeisfeilerLehman(Kernel):
             # Calculate the kernel marix with parallelization
             K = np.sum(
                 self._parallel(
-                    joblib.delayed(etransform)(self.X[i], g) for (i, g) in enumerate(generate_graphs(WL_labels_inverse, nl))
+                    joblib.delayed(etransform)(self.X[i], g)
+                    for (i, g) in enumerate(generate_graphs(WL_labels_inverse, nl))
                 ),
                 axis=0,
             )

@@ -13,7 +13,7 @@ from sklearn.svm import OneClassSVM
 from sklearn.utils import check_random_state
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 from grakel.tools import distribute_samples
 
 positive_eigenvalue_limit = float("+1e-6")
@@ -99,7 +99,9 @@ class SvmTheta(Kernel):
                 or self.subsets_size_range[0] <= 0
             ):
                 raise TypeError(
-                    "subsets_size_range subset size range" "must be a tuple of two integers in " "increasing order, bigger than 1"
+                    "subsets_size_range subset size range"
+                    "must be a tuple of two integers in "
+                    "increasing order, bigger than 1"
                 )
             self._initialized["subsets_size_range"] = True
 
@@ -199,7 +201,9 @@ class SvmTheta(Kernel):
 
         # Calculate level dictionary with lovasz values
         phi = np.zeros(shape=(self.subsets_size_range[1] - self.subsets_size_range[0] + 1, 1))
-        for i, level in enumerate(range(self.subsets_size_range[0], self.subsets_size_range[1] + 1)):
+        for i, level in enumerate(
+            range(self.subsets_size_range[0], self.subsets_size_range[1] + 1)
+        ):
             v = samples_on_subsets.get(level, None)
             if v is not None:
                 level_values = list()

@@ -13,7 +13,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 from grakel.kernels.shortest_path import ShortestPath
 
 
@@ -41,7 +41,9 @@ class CoreFramework(Kernel):
 
     _graph_format = "dictionary"
 
-    def __init__(self, n_jobs=None, verbose=False, normalize=False, min_core=-1, base_graph_kernel=None):
+    def __init__(
+        self, n_jobs=None, verbose=False, normalize=False, min_core=-1, base_graph_kernel=None
+    ):
         """Initialise a `hadamard_code` kernel."""
         super(CoreFramework, self).__init__(n_jobs=n_jobs, verbose=verbose, normalize=normalize)
 
@@ -66,10 +68,14 @@ class CoreFramework(Kernel):
                 try:
                     base_graph_kernel, params = base_graph_kernel
                 except Exception:
-                    raise TypeError("Base kernel was not formulated in " "the correct way. " "Check documentation.")
+                    raise TypeError(
+                        "Base kernel was not formulated in the correct way. Check documentation."
+                    )
 
                 if not (type(base_graph_kernel) is type and issubclass(base_graph_kernel, Kernel)):
-                    raise TypeError("The first argument must be a valid " "grakel.kernel.kernel Object")
+                    raise TypeError(
+                        "The first argument must be a valid grakel.kernel.kernel Object"
+                    )
                 if type(params) is not dict:
                     raise ValueError(
                         "If the second argument of base "
@@ -425,9 +431,16 @@ if __name__ == "__main__":
     from grakel.datasets import fetch_dataset
 
     # Create an argument parser for the installer of pynauty
-    parser = argparse.ArgumentParser(description="Measuring classification accuracy " " on multiscale_laplacian_fast")
+    parser = argparse.ArgumentParser(
+        description="Measuring classification accuracy  on multiscale_laplacian_fast"
+    )
 
-    parser.add_argument("--dataset", help="choose the dataset you want the tests to be executed", type=str, default="MUTAG")
+    parser.add_argument(
+        "--dataset",
+        help="choose the dataset you want the tests to be executed",
+        type=str,
+        default="MUTAG",
+    )
 
     parser.add_argument("--full", help="fit_transform the full graph", action="store_true")
 
@@ -440,7 +453,11 @@ if __name__ == "__main__":
     mc = int(args.mc)
     # The baseline dataset for node/edge-attributes
     dataset_attr = fetch_dataset(
-        dataset_name, with_classes=True, produce_labels_nodes=True, prefer_attr_nodes=False, verbose=True
+        dataset_name,
+        with_classes=True,
+        produce_labels_nodes=True,
+        prefer_attr_nodes=False,
+        verbose=True,
     )
 
     from time import time
