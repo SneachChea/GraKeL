@@ -1,20 +1,20 @@
 """The svm theta kernel as defined in :cite:`johansson2014global`."""
+
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
 import warnings
 
 import numpy as np
-
 from scipy.linalg import eigvalsh
-from sklearn.svm import OneClassSVM
-from sklearn.utils import check_random_state
-
-from grakel.kernels import Kernel
-from grakel.graph import Graph
-from grakel.tools import distribute_samples
 
 # For python2/3 compatibility
 from six.moves.collections_abc import Iterable
+from sklearn.svm import OneClassSVM
+from sklearn.utils import check_random_state
+
+from grakel.graph import Graph
+from grakel.kernels.kernel import Kernel
+from grakel.tools import distribute_samples
 
 positive_eigenvalue_limit = float("+1e-6")
 min_weight = float("1e-10")
@@ -55,46 +55,59 @@ class SvmTheta(Kernel):
 
     _graph_format = "adjacency"
 
-    def __init__(self, n_jobs=None, normalize=False,
-                 verbose=False, random_state=None, n_samples=50,
-                 subsets_size_range=(2, 8), metric=_inner):
+    def __init__(
+        self,
+        n_jobs=None,
+        normalize=False,
+        verbose=False,
+        random_state=None,
+        n_samples=50,
+        subsets_size_range=(2, 8),
+        metric=_inner,
+    ):
         """Initialise a lovasz_theta kernel."""
         # setup valid parameters and initialise from parent
-        super(SvmTheta, self).__init__(n_jobs=n_jobs,
-                                       normalize=normalize,
-                                       verbose=verbose)
+        super(SvmTheta, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
 
         self.n_samples = n_samples
         self.subsets_size_range = subsets_size_range
         self.metric = metric
         self.random_state = random_state
-        self._initialized.update({"n_samples": False, "subsets_size_range": False,
-                                  "metric": False, "random_state": False})
+        self._initialized.update(
+            {
+                "n_samples": False,
+                "subsets_size_range": False,
+                "metric": False,
+                "random_state": False,
+            }
+        )
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         super(SvmTheta, self).initialize()
         if not self._initialized["n_samples"]:
             if self.n_samples <= 0 or type(self.n_samples) is not int:
-                raise TypeError('n_samples must an integer be bigger '
-                                'than zero')
+                raise TypeError("n_samples must an integer be bigger than zero")
             self._initialized["n_samples"] = True
 
         if not self._initialized["subsets_size_range"]:
-            if (type(self.subsets_size_range) is not tuple
-                    or len(self.subsets_size_range) != 2
-                    or any(type(i) is not int for i in self.subsets_size_range)
-                    or self.subsets_size_range[0] > self.subsets_size_range[1]
-                    or self.subsets_size_range[0] <= 0):
-                raise TypeError('subsets_size_range subset size range'
-                                'must be a tuple of two integers in '
-                                'increasing order, bigger than 1')
+            if (
+                type(self.subsets_size_range) is not tuple
+                or len(self.subsets_size_range) != 2
+                or any(type(i) is not int for i in self.subsets_size_range)
+                or self.subsets_size_range[0] > self.subsets_size_range[1]
+                or self.subsets_size_range[0] <= 0
+            ):
+                raise TypeError(
+                    "subsets_size_range subset size range"
+                    "must be a tuple of two integers in "
+                    "increasing order, bigger than 1"
+                )
             self._initialized["subsets_size_range"] = True
 
         if not self._initialized["metric"]:
             if not callable(self.metric):
-                raise TypeError('metric between arguments' +
-                                'must be a function')
+                raise TypeError("metric between arguments" + "must be a function")
             self._initialized["metric"] = True
 
         if not self._initialized["random_state"]:
@@ -121,32 +134,33 @@ class SvmTheta(Kernel):
 
         """
         if not isinstance(X, Iterable):
-            raise TypeError('input must be an iterable\n')
+            raise TypeError("input must be an iterable\n")
         else:
             i = 0
             out = list()
-            for (idx, x) in enumerate(iter(X)):
+            for idx, x in enumerate(iter(X)):
                 is_iter = False
                 if isinstance(x, Iterable):
                     x, is_iter = list(x), True
                 if is_iter and len(x) in [0, 1, 2, 3]:
                     if len(x) == 0:
-                        warnings.warn('Ignoring empty element ' +
-                                      'on index: '+str(idx))
+                        warnings.warn("Ignoring empty element " + "on index: " + str(idx))
                         continue
                     else:
                         x = Graph(x[0], {}, {}, self._graph_format)
                 elif type(x) is not Graph:
-                    raise TypeError('each element of X must be either a ' +
-                                    'graph or an iterable with at least 1 ' +
-                                    'and at most 3 elements\n')
+                    raise TypeError(
+                        "each element of X must be either a "
+                        + "graph or an iterable with at least 1 "
+                        + "and at most 3 elements\n"
+                    )
                 i += 1
                 A = x.get_adjacency_matrix()
                 dual_coeffs = _calculate_svm_theta_(A)
                 out.append(self._calculate_svm_theta_levels_(A, dual_coeffs))
 
             if i == 0:
-                raise ValueError('parsed input is empty')
+                raise ValueError("parsed input is empty")
 
             return out
 
@@ -186,10 +200,10 @@ class SvmTheta(Kernel):
         samples_on_subsets = distribute_samples(n, self.subsets_size_range, self.n_samples)
 
         # Calculate level dictionary with lovasz values
-        phi = np.zeros(shape=(self.subsets_size_range[1] -
-                              self.subsets_size_range[0]+1, 1))
-        for (i, level) in enumerate(range(self.subsets_size_range[0],
-                                          self.subsets_size_range[1]+1)):
+        phi = np.zeros(shape=(self.subsets_size_range[1] - self.subsets_size_range[0] + 1, 1))
+        for i, level in enumerate(
+            range(self.subsets_size_range[0], self.subsets_size_range[1] + 1)
+        ):
             v = samples_on_subsets.get(level, None)
             if v is not None:
                 level_values = list()
@@ -220,13 +234,16 @@ def _calculate_svm_theta_(A):
 
     """
     K = (A > min_weight).astype(float)
-    np.fill_diagonal(K, .0)
-    min_eigv = eigvalsh(K, lower=False, eigvals=(0, 0))[0]
+    np.fill_diagonal(K, 0.0)
+    try:
+        min_eigv = eigvalsh(K, lower=False, eigvals=(0, 0))[0]
+    except TypeError:
+        min_eigv = eigvalsh(K, lower=False, subset_by_index=(0, 0))[0]
     if min_eigv < 0 and abs(min_eigv) > positive_eigenvalue_limit:
         K /= -min_eigv
         d = K.diagonal()
         d.setflags(write=True)
-        d += 1.
+        d += 1.0
 
     svm = OneClassSVM(kernel="precomputed")
     svm.fit(K)

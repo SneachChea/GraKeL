@@ -1,18 +1,18 @@
 """The neighborhood hashing kernel as defined in :cite:`Hido2009ALG`."""
+
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
 import warnings
 
-from grakel.graph import Graph
-from grakel.kernels import Kernel
-
+# Python 2/3 cross-compatibility import
+from six import iteritems, itervalues
+from six.moves.collections_abc import Iterable
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
 
-# Python 2/3 cross-compatibility import
-from six import itervalues
-from six import iteritems
-from six.moves.collections_abc import Iterable
+from grakel.graph import Graph
+from grakel.kernels.kernel import Kernel
+
 
 class NeighborhoodHash(Kernel):
     """Neighborhood hashing kernel as proposed in :cite:`Hido2009ALG`.
@@ -41,25 +41,26 @@ class NeighborhoodHash(Kernel):
 
     """
 
-    def __init__(self,
-                 n_jobs=None,
-                 normalize=False,
-                 verbose=False,
-                 random_state=None,
-                 R=3,
-                 nh_type='simple',
-                 bits=8):
+    def __init__(
+        self,
+        n_jobs=None,
+        normalize=False,
+        verbose=False,
+        random_state=None,
+        R=3,
+        nh_type="simple",
+        bits=8,
+    ):
         """Initialize a `neighborhood_hash` kernel."""
-        super(NeighborhoodHash, self).__init__(n_jobs=n_jobs,
-                                               normalize=normalize,
-                                               verbose=False)
+        super(NeighborhoodHash, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=False)
 
         self.random_state = random_state
         self.R = R
         self.nh_type = nh_type
         self.bits = bits
-        self._initialized.update({"random_state": False, "R": False, "nh_type": False,
-                                  "bits": False})
+        self._initialized.update(
+            {"random_state": False, "R": False, "nh_type": False, "bits": False}
+        )
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
@@ -71,24 +72,24 @@ class NeighborhoodHash(Kernel):
 
         if not self._initialized["R"]:
             if type(self.R) is not int or self.R <= 0:
-                raise TypeError('R must be an intger bigger than zero')
+                raise TypeError("R must be an intger bigger than zero")
             self._initialized["R"] = True
 
         if not self._initialized["nh_type"]:
-            if self.nh_type == 'simple':
+            if self.nh_type == "simple":
                 self.NH_ = self.neighborhood_hash_simple
-            elif self.nh_type == 'count_sensitive':
+            elif self.nh_type == "count_sensitive":
                 self.NH_ = self.neighborhood_hash_count_sensitive
             else:
-                raise TypeError('unrecognised neighborhood hashing type')
+                raise TypeError("unrecognised neighborhood hashing type")
             self._initialized["nh_type"] = True
 
         if not self._initialized["bits"]:
             if type(self.bits) is not int or self.bits <= 0:
-                raise TypeError('illegal number of bits for hashing')
+                raise TypeError("illegal number of bits for hashing")
 
             self._max_number = 1 << self.bits
-            self._mask = self._max_number-1
+            self._mask = self._max_number - 1
             self._initialized["bits"] = True
 
     def fit(self, X, y=None):
@@ -118,28 +119,29 @@ class NeighborhoodHash(Kernel):
         # Input validation and parsing
         self.initialize()
         if X is None:
-            raise ValueError('`fit` input cannot be None')
+            raise ValueError("`fit` input cannot be None")
         else:
             if not isinstance(X, Iterable):
-                raise TypeError('input must be an iterable\n')
+                raise TypeError("input must be an iterable\n")
 
             i = 0
             out = list()
             gs = list()
             self._labels_hash_dict, labels_hash_set = dict(), set()
-            for (idx, x) in enumerate(iter(X)):
+            for idx, x in enumerate(iter(X)):
                 is_iter = isinstance(x, Iterable)
                 if is_iter:
                     x = list(x)
                 if is_iter and len(x) in [0, 1, 2, 3]:
                     if len(x) == 0:
-                        warnings.warn('Ignoring empty element on index: '
-                                      + str(idx))
+                        warnings.warn("Ignoring empty element on index: " + str(idx))
                         continue
                     elif len(x) == 1:
                         warnings.warn(
-                            'Ignoring empty element on index: '
-                            + str(i) + '\nLabels must be provided.')
+                            "Ignoring empty element on index: "
+                            + str(i)
+                            + "\nLabels must be provided."
+                        )
                     else:
                         x = Graph(x[0], x[1], {}, self._graph_format)
                         vertices = list(x.get_vertices(purpose="any"))
@@ -148,13 +150,14 @@ class NeighborhoodHash(Kernel):
                     vertices = list(x.get_vertices(purpose="any"))
                     Labels = x.get_labels(purpose="any")
                 else:
-                    raise TypeError('each element of X must be either '
-                                    'a graph object or a list with at '
-                                    'least a graph like object and '
-                                    'node labels dict \n')
+                    raise TypeError(
+                        "each element of X must be either "
+                        "a graph object or a list with at "
+                        "least a graph like object and "
+                        "node labels dict \n"
+                    )
 
-                g = (vertices, Labels,
-                     {n: x.neighbors(n, purpose="any") for n in vertices})
+                g = (vertices, Labels, {n: x.neighbors(n, purpose="any") for n in vertices})
 
                 # collect all the labels
                 labels_hash_set |= set(itervalues(Labels))
@@ -162,43 +165,47 @@ class NeighborhoodHash(Kernel):
                 i += 1
 
             if i == 0:
-                raise ValueError('parsed input is empty')
+                raise ValueError("parsed input is empty")
 
             # Hash labels
             if len(labels_hash_set) > self._max_number:
-                warnings.warn('Number of labels is smaller than'
-                              'the biggest possible.. '
-                              'Collisions will appear on the '
-                              'new labels.')
+                warnings.warn(
+                    "Number of labels is smaller than"
+                    "the biggest possible.. "
+                    "Collisions will appear on the "
+                    "new labels."
+                )
 
                 # If labels exceed the biggest possible size
                 nl, nrl = list(), len(labels_hash_set)
                 while nrl > self._max_number:
-                    nl += self.random_state_.choice(self._max_number,
-                                                    self._max_number,
-                                                    replace=False).tolist()
+                    nl += self.random_state_.choice(
+                        self._max_number, self._max_number, replace=False
+                    ).tolist()
                     nrl -= self._max_number
                 if nrl > 0:
-                    nl += self.random_state_.choice(self._max_number,
-                                                    nrl,
-                                                    replace=False).tolist()
+                    nl += self.random_state_.choice(self._max_number, nrl, replace=False).tolist()
                 # unify the collisions per element.
 
             else:
                 # else draw n random numbers.
-                nl = self.random_state_.choice(self._max_number, len(labels_hash_set),
-                                               replace=False).tolist()
+                nl = self.random_state_.choice(
+                    self._max_number, len(labels_hash_set), replace=False
+                ).tolist()
 
             self._labels_hash_dict = dict(zip(labels_hash_set, nl))
 
             # for all graphs
             for vertices, labels, neighbors in gs:
-                new_labels = {v: self._labels_hash_dict[l]
-                              for v, l in iteritems(labels)}
-                g = (vertices, new_labels, neighbors,)
+                new_labels = {v: self._labels_hash_dict[l] for v, l in iteritems(labels)}
+                g = (
+                    vertices,
+                    new_labels,
+                    neighbors,
+                )
                 gr = {0: self.NH_(g)}
                 for r in range(1, self.R):
-                    gr[r] = self.NH_(gr[r-1])
+                    gr[r] = self.NH_(gr[r - 1])
 
                 # save the output for all levels
                 out.append(gr)
@@ -261,30 +268,31 @@ class NeighborhoodHash(Kernel):
         """
         self._method_calling = 3
         # Check is fit had been called
-        check_is_fitted(self, ['X'])
+        check_is_fitted(self, ["X"])
 
         # Input validation and parsing
         if X is None:
-            raise ValueError('`transform` input cannot be None')
+            raise ValueError("`transform` input cannot be None")
         else:
             if not isinstance(X, Iterable):
-                raise TypeError('input must be an iterable\n')
+                raise TypeError("input must be an iterable\n")
 
             i = 0
             out = list()
-            for (idx, x) in enumerate(iter(X)):
+            for idx, x in enumerate(iter(X)):
                 is_iter = isinstance(x, Iterable)
                 if is_iter:
                     x = list(x)
                 if is_iter and len(x) in [0, 1, 2, 3]:
                     if len(x) == 0:
-                        warnings.warn('Ignoring empty element on index: '
-                                      + str(idx))
+                        warnings.warn("Ignoring empty element on index: " + str(idx))
                         continue
                     elif len(x) == 1:
                         warnings.warn(
-                            'Ignoring empty element on index: '
-                            + str(i) + '\nLabels must be provided.')
+                            "Ignoring empty element on index: "
+                            + str(i)
+                            + "\nLabels must be provided."
+                        )
                     else:
                         x = Graph(x[0], x[1], {}, self._graph_format)
                         vertices = list(x.get_vertices(purpose="any"))
@@ -293,30 +301,31 @@ class NeighborhoodHash(Kernel):
                     vertices = list(x.get_vertices(purpose="any"))
                     Labels = x.get_labels(purpose="any")
                 else:
-                    raise TypeError('each element of X must be either '
-                                    'a graph object or a list with at '
-                                    'least a graph like object and '
-                                    'node labels dict \n')
+                    raise TypeError(
+                        "each element of X must be either "
+                        "a graph object or a list with at "
+                        "least a graph like object and "
+                        "node labels dict \n"
+                    )
 
                 # Hash based on the labels of fit
-                new_labels = {v: self._labels_hash_dict.get(l, None)
-                              for v, l in iteritems(Labels)}
+                new_labels = {v: self._labels_hash_dict.get(l, None) for v, l in iteritems(Labels)}
 
                 # Radix sort the other
-                g = ((vertices, new_labels) +
-                     ({n: x.neighbors(n, purpose="any")
-                       for n in vertices},))
+                g = (vertices, new_labels) + (
+                    {n: x.neighbors(n, purpose="any") for n in vertices},
+                )
 
                 gr = {0: self.NH_(g)}
                 for r in range(1, self.R):
-                    gr[r] = self.NH_(gr[r-1])
+                    gr[r] = self.NH_(gr[r - 1])
 
                 # save the output for all levels
                 out.append(gr)
                 i += 1
 
                 if i == 0:
-                    raise ValueError('parsed input is empty')
+                    raise ValueError("parsed input is empty")
 
         # Transform - calculate kernel matrix
         # Output is always normalized
@@ -341,7 +350,7 @@ class NeighborhoodHash(Kernel):
 
         """
         k = sum(nh_compare_labels(x[r], y[r]) for r in range(self.R))
-        return k / (1.0*self.R)
+        return k / (1.0 * self.R)
 
     def diagonal(self):
         """Calculate the kernel matrix diagonal of the fit/transfromed data.
@@ -387,8 +396,7 @@ class NeighborhoodHash(Kernel):
         m = d % self.bits
 
         if m > 0:
-            return (n << m) & self._mask | \
-                   ((n & self._mask) >> (self.bits-m))
+            return (n << m) & self._mask | ((n & self._mask) >> (self.bits - m))
         else:
             return n
 
@@ -410,8 +418,7 @@ class NeighborhoodHash(Kernel):
         vertices, labels, neighbors = G
         new_labels = dict()
         for u in vertices:
-            if (labels[u] is None or
-                    any(labels[n] is None for n in neighbors[u])):
+            if labels[u] is None or any(labels[n] is None for n in neighbors[u]):
                 new_labels[u] = None
             else:
                 label = self.ROT(labels[u], 1)
@@ -439,8 +446,7 @@ class NeighborhoodHash(Kernel):
         vertices, labels, neighbors = G
         new_labels = dict()
         for u in vertices:
-            if (labels[u] is None or
-                    any(labels[n] is None for n in neighbors[u])):
+            if labels[u] is None or any(labels[n] is None for n in neighbors[u]):
                 new_labels[u] = None
             else:
                 label = self.ROT(labels[u], 1)
@@ -470,7 +476,7 @@ class NeighborhoodHash(Kernel):
 
         for b in range(self.bits):
             # The output array elements that will have sorted arr
-            output = [0]*n
+            output = [0] * n
 
             # initialize count array as 0
             count = [0, 0]
@@ -484,8 +490,8 @@ class NeighborhoodHash(Kernel):
             count[1] += count[0]
 
             # Build the output array
-            for i in range(n-1, -1, -1):
-                index = (labels[i] >> b)
+            for i in range(n - 1, -1, -1):
+                index = labels[i] >> b
                 output[count[index % 2] - 1] = labels[i]
                 count[index % 2] -= 1
 
@@ -524,9 +530,12 @@ class NeighborhoodHash(Kernel):
 
         """
         if self._method_calling == 3:
-            return (sorted(list(vertices),
-                           key=lambda x: float('inf')
-                           if labels[x] is None else labels[x]), labels)
+            return (
+                sorted(
+                    list(vertices), key=lambda x: float("inf") if labels[x] is None else labels[x]
+                ),
+                labels,
+            )
         else:
             return (sorted(vertices, key=lambda x: labels[x]), labels)
 
@@ -570,4 +579,4 @@ def nh_compare_labels(Gx, Gy):
         else:
             b += 1
 
-    return c/float(nv_x+nv_y-c)
+    return c / float(nv_x + nv_y - c)

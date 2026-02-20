@@ -1,29 +1,26 @@
 """RW-kernel. as in :cite:`kashima2003marginalized`, :cite:`gartner2003graph`."""
+
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
 import warnings
+from itertools import product
 
 import numpy as np
 
-from itertools import product
-
-if np.__version__ < '2.0.0':
+if np.__version__ < "2.0.0":
     from numpy import ComplexWarning
 else:
     from numpy.exceptions import ComplexWarning
-from numpy.linalg import inv
-from numpy.linalg import eig
-from numpy.linalg import multi_dot
-from scipy.linalg import expm
-from scipy.sparse.linalg import cg
-from scipy.sparse.linalg import LinearOperator
-
-from grakel.kernels import Kernel
-from grakel.graph import Graph
-
 # Python 2/3 cross-compatibility import
 from builtins import range
+
+from numpy.linalg import eig, inv, multi_dot
+from scipy.linalg import expm
+from scipy.sparse.linalg import LinearOperator, cg
 from six.moves.collections_abc import Iterable
+
+from grakel.graph import Graph
+from grakel.kernels.kernel import Kernel
 
 
 class RandomWalk(Kernel):
@@ -59,25 +56,31 @@ class RandomWalk(Kernel):
 
     _graph_format = "adjacency"
 
-    def __init__(self, n_jobs=None,
-                 normalize=False, verbose=False,
-                 lamda=0.1, method_type="fast",
-                 kernel_type="geometric", p=None):
+    def __init__(
+        self,
+        n_jobs=None,
+        normalize=False,
+        verbose=False,
+        lamda=0.1,
+        method_type="fast",
+        kernel_type="geometric",
+        p=None,
+    ):
         """Initialise a random_walk kernel."""
         # setup valid parameters and initialise from parent
-        super(RandomWalk, self).__init__(
-            n_jobs=n_jobs, normalize=normalize, verbose=verbose)
+        super(RandomWalk, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
 
         # Ignores ComplexWarning as it does not signify anything problematic
-        warnings.filterwarnings('ignore', category=ComplexWarning)
+        warnings.filterwarnings("ignore", category=ComplexWarning)
 
         # Setup method type and define operation.
         self.method_type = method_type
         self.kernel_type = kernel_type
         self.p = p
         self.lamda = lamda
-        self._initialized.update({"method_type": False, "kernel_type": False,
-                                  "p": False, "lamda": False})
+        self._initialized.update(
+            {"method_type": False, "kernel_type": False, "p": False, "lamda": False}
+        )
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
@@ -85,22 +88,20 @@ class RandomWalk(Kernel):
 
         if not self._initialized["method_type"]:
             # Setup method type and define operation.
-            if (self.method_type == "baseline" or
-                    (self.method_type == "fast"
-                     and self.p is None
-                     and self.kernel_type == "geometric")):
+            if self.method_type == "baseline" or (
+                self.method_type == "fast" and self.p is None and self.kernel_type == "geometric"
+            ):
                 self.add_input_ = idem
             elif self.method_type == "fast":
                 # Spectral Decomposition if adjacency matrix is symmetric
                 self.add_input_ = sd
             else:
-                raise ValueError('unsupported method_type')
+                raise ValueError("unsupported method_type")
             self._initialized["method_type"] = True
 
         if not self._initialized["kernel_type"]:
             if self.kernel_type not in ["geometric", "exponential"]:
-                raise ValueError('unsupported kernel type: either "geometric" '
-                                 'or "exponential"')
+                raise ValueError('unsupported kernel type: either "geometric" or "exponential"')
 
         if not self._initialized["p"]:
             if self.p is not None:
@@ -112,7 +113,7 @@ class RandomWalk(Kernel):
                         for k in range(1, self.p + 1):
                             fact *= k
                             power *= self.lamda
-                            self.mu_.append(power/fact)
+                            self.mu_.append(power / fact)
                     else:
                         self.mu_ = [1]
                         power = 1
@@ -120,15 +121,14 @@ class RandomWalk(Kernel):
                             power *= self.lamda
                             self.mu_.append(power)
                 else:
-                    raise TypeError('p must be a positive integer bigger than '
-                                    'zero or nonetype')
+                    raise TypeError("p must be a positive integer bigger than zero or nonetype")
                 self._initialized["kernel_type"] = True
 
         if not self._initialized["lamda"]:
             if self.lamda <= 0:
-                raise TypeError('lambda must be positive bigger than equal')
+                raise TypeError("lambda must be positive bigger than equal")
             elif self.lamda > 0.5 and self.p is None:
-                warnings.warn('random-walk series may fail to converge')
+                warnings.warn("random-walk series may fail to converge")
             self._initialized["lamda"] = True
 
     def parse_input(self, X):
@@ -151,33 +151,33 @@ class RandomWalk(Kernel):
 
         """
         if not isinstance(X, Iterable):
-            raise TypeError('input must be an iterable\n')
+            raise TypeError("input must be an iterable\n")
         else:
             i = 0
             out = list()
-            for (idx, x) in enumerate(iter(X)):
+            for idx, x in enumerate(iter(X)):
                 is_iter = isinstance(x, Iterable)
                 if is_iter:
                     x = list(x)
                 if is_iter and len(x) in [0, 1, 2, 3]:
                     if len(x) == 0:
-                        warnings.warn('Ignoring empty element' +
-                                      ' on index: '+str(idx))
+                        warnings.warn("Ignoring empty element" + " on index: " + str(idx))
                         continue
                     else:
-                        A = Graph(x[0], {}, {},
-                                  self._graph_format).get_adjacency_matrix()
+                        A = Graph(x[0], {}, {}, self._graph_format).get_adjacency_matrix()
                 elif type(x) is Graph:
                     A = x.get_adjacency_matrix()
                 else:
-                    raise TypeError('each element of X must be either a ' +
-                                    'graph or an iterable with at least 1 ' +
-                                    'and at most 3 elements\n')
+                    raise TypeError(
+                        "each element of X must be either a "
+                        + "graph or an iterable with at least 1 "
+                        + "and at most 3 elements\n"
+                    )
                 i += 1
                 out.append(self.add_input_(A))
 
             if i == 0:
-                raise ValueError('parsed input is empty')
+                raise ValueError("parsed input is empty")
 
             return out
 
@@ -220,15 +220,17 @@ class RandomWalk(Kernel):
                 S = self.mu_[0] * P
                 for k in self.mu_[1:]:
                     P = np.matmul(P, XY)
-                    S += k*P
+                    S += k * P
             else:
                 if self.kernel_type == "geometric":
-                    S = inv(np.identity(s) - self.lamda*XY).T
+                    S = inv(np.identity(s) - self.lamda * XY).T
                 elif self.kernel_type == "exponential":
-                    S = expm(self.lamda*XY).T
+                    S = expm(self.lamda * XY).T
 
             return np.sum(S)
-        elif self.method_type == "fast" and (self.p is not None or self.kernel_type == "exponential"):
+        elif self.method_type == "fast" and (
+            self.p is not None or self.kernel_type == "exponential"
+        ):
             # Spectral demoposition algorithm as presented in
             # [Vishwanathan et al., 2006] p.13, s.4.4, with
             # complexity of O((|E|+|V|)|E||V|^2) for graphs
@@ -248,12 +250,12 @@ class RandomWalk(Kernel):
                 S = self.mu_[0] * D
                 for k in self.mu_[1:]:
                     D *= Dij
-                    S += k*D
+                    S += k * D
 
                 S = np.diagflat(S)
             else:
                 # Exponential
-                S = np.diagflat(np.exp(self.lamda*Dij))
+                S = np.diagflat(np.exp(self.lamda * Dij))
             return ff.dot(S).dot(ff.T)
         else:
             # Random Walk
@@ -261,11 +263,11 @@ class RandomWalk(Kernel):
             # [Vishwanathan et al., 2006] p.12, s.4.2
             Ax, Ay = X, Y
             xs, ys = Ax.shape[0], Ay.shape[0]
-            mn = xs*ys
+            mn = xs * ys
 
             def lsf(x, lamda):
-                xm = x.reshape((xs, ys), order='F')
-                y = np.reshape(multi_dot((Ax, xm, Ay)), (mn,), order='F')
+                xm = x.reshape((xs, ys), order="F")
+                y = np.reshape(multi_dot((Ax, xm, Ay)), (mn,), order="F")
                 return x - self.lamda * y
 
             # A*x=b
@@ -325,16 +327,27 @@ class RandomWalkLabeled(RandomWalk):
 
     _graph_format = "adjacency"
 
-    def __init__(self, n_jobs=None,
-                 normalize=False, verbose=False,
-                 lamda=0.1, method_type="fast",
-                 kernel_type="geometric", p=None):
+    def __init__(
+        self,
+        n_jobs=None,
+        normalize=False,
+        verbose=False,
+        lamda=0.1,
+        method_type="fast",
+        kernel_type="geometric",
+        p=None,
+    ):
         """Initialise a labeled random_walk kernel."""
         # Initialise from parent
         super(RandomWalkLabeled, self).__init__(
-            n_jobs=n_jobs, normalize=normalize, verbose=verbose,
-            lamda=lamda, method_type=method_type, kernel_type=kernel_type,
-            p=p)
+            n_jobs=n_jobs,
+            normalize=normalize,
+            verbose=verbose,
+            lamda=lamda,
+            method_type=method_type,
+            kernel_type=kernel_type,
+            p=p,
+        )
 
     def parse_input(self, X):
         """Parse and create features for graphlet_sampling kernel.
@@ -356,25 +369,26 @@ class RandomWalkLabeled(RandomWalk):
 
         """
         if not isinstance(X, Iterable):
-            raise TypeError('input must be an iterable\n')
+            raise TypeError("input must be an iterable\n")
         else:
             i = 0
             proc = list()
-            for (idx, x) in enumerate(iter(X)):
+            for idx, x in enumerate(iter(X)):
                 is_iter = isinstance(x, Iterable)
                 if is_iter:
                     x = list(x)
                 if is_iter and len(x) in [1, 2, 3]:
                     if len(x) == 0:
-                        warnings.warn('Ignoring empty element' +
-                                      ' on index: '+str(idx))
+                        warnings.warn("Ignoring empty element" + " on index: " + str(idx))
                         continue
                     else:
                         x = Graph(x[0], x[1], {}, self._graph_format)
                 elif type(x) is not Graph:
-                    raise TypeError('each element of X must be either a ' +
-                                    'graph or an iterable with at least 2 ' +
-                                    'and at most 3 elements\n')
+                    raise TypeError(
+                        "each element of X must be either a "
+                        + "graph or an iterable with at least 2 "
+                        + "and at most 3 elements\n"
+                    )
                 i += 1
                 x.desired_format("adjacency")
                 Ax = x.get_adjacency_matrix()
@@ -388,13 +402,14 @@ class RandomWalkLabeled(RandomWalk):
                 labels = set(Lx)
                 Lx = np.array(Lx)
                 for t in product(labels, labels):
-                    selector = np.matmul(np.expand_dims(Lx == t[0], axis=1),
-                                         np.expand_dims(Lx == t[1], axis=0))
+                    selector = np.matmul(
+                        np.expand_dims(Lx == t[0], axis=1), np.expand_dims(Lx == t[1], axis=0)
+                    )
                     amss[t] = Ax * selector
                 out.append((amss, s))
 
             if i == 0:
-                raise ValueError('parsed input is empty')
+                raise ValueError("parsed input is empty")
 
             return out
 
@@ -427,7 +442,11 @@ class RandomWalkLabeled(RandomWalk):
 
         mn = xs * ys
 
-        if self.kernel_type == "exponential" or self.method_type == "baseline" or self.p is not None:
+        if (
+            self.kernel_type == "exponential"
+            or self.method_type == "baseline"
+            or self.p is not None
+        ):
             # Claculate Kronecker product matrix
             XY = np.zeros(shape=(mn, mn))
             for k in ck:
@@ -441,14 +460,14 @@ class RandomWalkLabeled(RandomWalk):
                 S = self.mu_[0] * P
                 for k in self.mu_[1:]:
                     P = np.matmul(P, XY)
-                    S += k*P
+                    S += k * P
             elif self.kernel_type == "exponential":
-                S = expm(self.lamda*XY).T
+                S = expm(self.lamda * XY).T
             elif self.kernel_type == "geometric":
                 # Baseline Algorithm as presented in
                 # [Vishwanathan et al., 2006]
                 Id = np.identity(s)
-                S = inv(Id - self.lamda*XY).T
+                S = inv(Id - self.lamda * XY).T
 
             return np.sum(S)
         elif self.method_type == "fast" and self.kernel_type == "geometric":
@@ -457,13 +476,16 @@ class RandomWalkLabeled(RandomWalk):
             AxAy = [(X[k], Y[k]) for k in ck]
 
             if len(ck):
+
                 def lsf(x, lamda):
                     y = 0
-                    xm = x.reshape((xs, ys), order='F')
+                    xm = x.reshape((xs, ys), order="F")
                     for Ax, Ay in AxAy:
-                        y += np.reshape(multi_dot((Ax, xm, Ay)), (mn,), order='F')
+                        y += np.reshape(multi_dot((Ax, xm, Ay)), (mn,), order="F")
                     return x - self.lamda * y
+
             else:
+
                 def lsf(x, lamda):
                     return x - np.zeros(mn)
 

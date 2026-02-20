@@ -5,12 +5,12 @@ Installing GraKeL
 =================
 The GraKeL library requires the following packages to be installed:
 
-* Python (>=2.7, >=3.5)
-* NumPy (>=1.8.2)
-* SciPy (>=0.13.3)
-* Cython (>=0.27.3)
+* Python (>=3.10)
+* NumPy (>=1.23.0)
+* SciPy (>=1.8.0)
+* Cython (>=0.29.36)
 * cvxopt (>=1.2.0) [optional]
-* future (>=0.16.0) (for python 2.7)
+* future (>=0.16.0)
 
 *GraKeL* is available via `PyPI`_ . You can install the latest release of *GraKeL* using the following command:
 
@@ -29,7 +29,7 @@ To also install the cvxopt package, which is a requirement of the Lovász-:math:
 Building GraKeL
 ---------------
 
-In order to build your own version of *GraKeL*, you need a C++ compiler since the package contains some C++ extensions. To build and install a local version of `GraKeL`, you need to execute :code:`pip install .` or :code:`python setup.py install` on the root folder. Furthermore, in case you want to build the extensions locally, execute :code:`python setup.py build_ext`.
+In order to build your own version of *GraKeL*, you need a C++ compiler since the package contains some C++ extensions. To build and install a local editable version of `GraKeL` with Poetry in your conda environment, execute :code:`poetry install --with dev,test` on the root folder, then compile extensions with :code:`poetry run python setup.py build_ext --inplace`. To build distributable artifacts, execute :code:`poetry build`.
 
 In order for the C++ extensions to compile our extensions, a system-specific build environment should be configured. What you generally need is a C++ compiler and some python header files.
 

@@ -1,47 +1,79 @@
 [build-system]
-requires = ["setuptools>=61.0.0", "cython", "numpy>=1.14.0"]
+requires = ["setuptools>=61.0.0", "cython>=0.29.36", "numpy>=1.23.0"]
 build-backend = "setuptools.build_meta"
 
-[project]
+[tool.poetry]
 name = "GraKeL"
-version='0.1.10'
-dependencies = [
-    "numpy >= 1.14.0",
-    "cython >= 0.27.3",
-    "scikit-learn >= 0.19",
-    "six >= 1.11.0",
-    "future >= 0.16.0",
-    "joblib"
-]
-requires-python=">=3.5"
-authors = [
-    { name = "Ioannis-Siglidis", email = "y.siglidis@gmail.com" }
-]
+version = "0.1.11"
+description = "A scikit-learn compatible library for graph kernels"
+authors = ["Ioannis-Siglidis <y.siglidis@gmail.com>"]
 readme = "README.md"
-description='A scikit-learn compatible library for graph kernels'
-classifiers=[
-    'Intended Audience :: Science/Research',
-    'Intended Audience :: Developers',
-    'License :: OSI Approved',
-    'Programming Language :: C',
-    'Programming Language :: Python',
-    'Topic :: Software Development',
-    'Topic :: Scientific/Engineering',
-    'Operating System :: POSIX',
-    'Operating System :: Unix',
-    'Operating System :: MacOS',
-    'Programming Language :: Python :: 3',
+license = "BSD-3-Clause"
+documentation = "https://ysig.github.io/GraKeL/"
+homepage = "https://ysig.github.io/GraKeL/"
+repository = "https://github.com/ysig/GraKeL/"
+packages = [{ include = "grakel" }]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved",
+    "Programming Language :: C",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+    "Topic :: Scientific/Engineering",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Operating System :: MacOS",
 ]
-license= { file = "LICENSE" }
 
-[project.optional-dependencies]
-lovasz = ["cvxopt>=1.2.0"]
-dev = ["cvxopt>=1.2.0", "pytest", "pytest-coverage", "torch_geometric"]
-test = ["pytest", "pytest-coverage", "torch_geometric"]
-wheel = ["pytest", "pytest-coverage"]
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+numpy = ">=1.23.0"
+cython = ">=0.29.36"
+scikit-learn = ">=1.0"
+scipy = ">=1.8.0"
+six = ">=1.11.0"
+future = ">=0.16.0"
+joblib = "*"
+cvxopt = { version = ">=1.2.0", optional = true }
 
-[project.urls]
-documentation = 'https://ysig.github.io/GraKeL/'
-feedback = 'http://www.lix.polytechnique.fr/dascim/contact/'
-source = 'https://github.com/ysig/GraKeL/'
-tracker = 'https://github.com/ysig/GraKeL/issues'
+[tool.poetry.extras]
+lovasz = ["cvxopt"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=7.0"
+pytest-cov = ">=4.0"
+pre-commit = ">=3.7"
+ruff = ">=0.6.0"
+black = ">=24.0.0"
+isort = ">=5.13.0"
+
+[tool.poetry.group.test.dependencies]
+pytest = ">=7.0"
+pytest-cov = ">=4.0"
+
+[tool.poetry.urls]
+documentation = "https://ysig.github.io/GraKeL/"
+feedback = "http://www.lix.polytechnique.fr/dascim/contact/"
+source = "https://github.com/ysig/GraKeL/"
+tracker = "https://github.com/ysig/GraKeL/issues"
+
+[tool.black]
+line-length = 130
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 130
+
+[tool.ruff]
+line-length = 130
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]

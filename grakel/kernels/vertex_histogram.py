@@ -1,26 +1,21 @@
 """The vertex kernel as defined in :cite:`sugiyama2015halting`."""
+
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
+from collections import Counter
 from warnings import warn
 
-from collections import Counter
-
-from sklearn.exceptions import NotFittedError
-from sklearn.utils.validation import check_is_fitted
-
-from grakel.kernels import Kernel
-from grakel.graph import Graph
-
-from numpy import zeros
-from numpy import einsum
-from numpy import array
-from numpy import squeeze
+from numpy import array, einsum, squeeze, zeros
 from scipy.sparse import csr_matrix
 
 # Python 2/3 cross-compatibility import
-from six import iteritems
-from six import itervalues
+from six import iteritems, itervalues
 from six.moves.collections_abc import Iterable
+from sklearn.exceptions import NotFittedError
+from sklearn.utils.validation import check_is_fitted
+
+from grakel.graph import Graph
+from grakel.kernels.kernel import Kernel
 
 
 class VertexHistogram(Kernel):
@@ -40,21 +35,21 @@ class VertexHistogram(Kernel):
 
     """
 
-    def __init__(self, n_jobs=None, normalize=False, verbose=False, sparse='auto'):
+    def __init__(self, n_jobs=None, normalize=False, verbose=False, sparse="auto"):
         """Initialise a vertex histogram kernel."""
         super(VertexHistogram, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
         self.sparse = sparse
-        self._initialized.update({'sparse': True})
+        self._initialized.update({"sparse": True})
 
     def _initialized(self):
         """Initialize all transformer arguments, needing initialization."""
         if not self._initialized["n_jobs"]:
             if self.n_jobs is not None:
-                warn('no implemented parallelization for VertexHistogram')
+                warn("no implemented parallelization for VertexHistogram")
             self._initialized["n_jobs"] = True
         if not self._initialized["sparse"]:
-            if self.sparse not in ['auto', False, True]:
-                TypeError('sparse could be False, True or auto')
+            if self.sparse not in ["auto", False, True]:
+                TypeError("sparse could be False, True or auto")
             self._initialized["sparse"] = True
 
     def parse_input(self, X):
@@ -77,7 +72,7 @@ class VertexHistogram(Kernel):
 
         """
         if not isinstance(X, Iterable):
-            raise TypeError('input must be an iterable\n')
+            raise TypeError("input must be an iterable\n")
         else:
             rows, cols, data = list(), list(), list()
             if self._method_calling in [1, 2]:
@@ -86,13 +81,13 @@ class VertexHistogram(Kernel):
             elif self._method_calling == 3:
                 labels = dict(self._labels)
             ni = 0
-            for (i, x) in enumerate(iter(X)):
+            for i, x in enumerate(iter(X)):
                 is_iter = isinstance(x, Iterable)
                 if is_iter:
                     x = list(x)
                 if is_iter and len(x) in [0, 2, 3]:
                     if len(x) == 0:
-                        warn('Ignoring empty element on index: '+str(i))
+                        warn("Ignoring empty element on index: " + str(i))
                         continue
                     else:
                         # Our element is an iterable of at least 2 elements
@@ -101,13 +96,15 @@ class VertexHistogram(Kernel):
                     # get labels in any existing format
                     L = x.get_labels(purpose="any")
                 else:
-                    raise TypeError('each element of X must be either a '
-                                    'graph object or a list with at least '
-                                    'a graph like object and node labels '
-                                    'dict \n')
+                    raise TypeError(
+                        "each element of X must be either a "
+                        "graph object or a list with at least "
+                        "a graph like object and node labels "
+                        "dict \n"
+                    )
 
                 # construct the data input for the numpy array
-                for (label, frequency) in iteritems(Counter(itervalues(L))):
+                for label, frequency in iteritems(Counter(itervalues(L))):
                     # for the row that corresponds to that graph
                     rows.append(ni)
 
@@ -126,8 +123,8 @@ class VertexHistogram(Kernel):
                 ni += 1
 
             if self._method_calling in [1, 2]:
-                if self.sparse == 'auto':
-                    self.sparse_ = (len(cols)/float(ni * len(labels)) <= 0.5)
+                if self.sparse == "auto":
+                    self.sparse_ = len(cols) / float(ni * len(labels)) <= 0.5
                 else:
                     self.sparse_ = bool(self.sparse)
 
@@ -136,7 +133,7 @@ class VertexHistogram(Kernel):
                     (data, (rows, cols)),
                     shape=(ni, len(labels)),
                     copy=False,
-                    dtype=">f8",
+                    dtype=float,
                 )
             else:
                 # Initialise the feature matrix
@@ -144,16 +141,19 @@ class VertexHistogram(Kernel):
                     features = zeros(shape=(ni, len(labels)))
                     features[rows, cols] = data
                 except MemoryError:
-                    warn('memory-error: switching to sparse')
-                    self.sparse_, features = True, csr_matrix(
-                        (data, (rows, cols)),
-                        shape=(ni, len(labels)),
-                        copy=False,
-                        dtype=">f8",
+                    warn("memory-error: switching to sparse")
+                    self.sparse_, features = (
+                        True,
+                        csr_matrix(
+                            (data, (rows, cols)),
+                            shape=(ni, len(labels)),
+                            copy=False,
+                            dtype=float,
+                        ),
                     )
 
             if ni == 0:
-                raise ValueError('parsed input is empty')
+                raise ValueError("parsed input is empty")
             return features
 
     def _calculate_kernel_matrix(self, Y=None):
@@ -179,7 +179,7 @@ class VertexHistogram(Kernel):
         if Y is None:
             K = self.X.dot(self.X.T)
         else:
-            K = Y[:, :self.X.shape[1]].dot(self.X.T)
+            K = Y[:, : self.X.shape[1]].dot(self.X.T)
 
         if self.sparse_:
             return K.toarray()
@@ -202,21 +202,21 @@ class VertexHistogram(Kernel):
 
         """
         # Check is fit had been called
-        check_is_fitted(self, ['X', 'sparse_'])
+        check_is_fitted(self, ["X", "sparse_"])
         try:
-            check_is_fitted(self, ['_X_diag'])
+            check_is_fitted(self, ["_X_diag"])
         except NotFittedError:
             # Calculate diagonal of X
             if self.sparse_:
                 self._X_diag = squeeze(array(self.X.multiply(self.X).sum(axis=1)))
             else:
-                self._X_diag = einsum('ij,ij->i', self.X, self.X)
+                self._X_diag = einsum("ij,ij->i", self.X, self.X)
         try:
-            check_is_fitted(self, ['_Y'])
+            check_is_fitted(self, ["_Y"])
             if self.sparse_:
                 Y_diag = squeeze(array(self._Y.multiply(self._Y).sum(axis=1)))
             else:
-                Y_diag = einsum('ij,ij->i', self._Y, self._Y)
+                Y_diag = einsum("ij,ij->i", self._Y, self._Y)
             return self._X_diag, Y_diag
         except NotFittedError:
             return self._X_diag

@@ -4,17 +4,19 @@
 # PyBliss which can be found at: http://www.tcs.hut.fi/Software/bliss/
 # PyBliss and Bliss are copyright of their respective owners.
 # License: BSD 3 clause"
-import cython
+import collections
 import sys
 import types
-import collections
+from functools import total_ordering
+
+import cython
+from six import iteritems
 
 # Python 2/3 cross-compatibility import
 from six.moves.collections_abc import Hashable
 
 from grakel.kernels._isomorphism import intpybliss
-from functools import total_ordering
-from six import iteritems
+
 
 def _report(perm, args):
     [reporter_func, reporter_args, bliss_map_inv] = args;

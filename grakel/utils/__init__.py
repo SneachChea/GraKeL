@@ -1,27 +1,25 @@
 """A file containing useful external functions"""
+
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
 import os
-import numpy as np
-
 from collections import defaultdict
 
-from sklearn.base import TransformerMixin
+import numpy as np
+
+# For python2/3 compatibility
+from six.moves.collections_abc import Iterable
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.model_selection import GridSearchCV, KFold, ShuffleSplit
 from sklearn.pipeline import make_pipeline
-from sklearn.model_selection import KFold
-from sklearn.model_selection import GridSearchCV
-from sklearn.model_selection import ShuffleSplit
-from sklearn.base import BaseEstimator
 from sklearn.svm import SVC
-from sklearn.utils import Bunch
-from sklearn.utils import check_random_state
+from sklearn.utils import Bunch, check_random_state
 from sklearn.utils.validation import check_is_fitted
 
 from grakel import Graph
 from grakel.graph import is_adjacency as valid_matrix
+from ._misc import EPS
 
-# For python2/3 compatibility
-from six.moves.collections_abc import Iterable
 
 class KMTransformer(BaseEstimator, TransformerMixin):
     """A Kernel Matrix Transformer.
@@ -46,6 +44,7 @@ class KMTransformer(BaseEstimator, TransformerMixin):
     K_ : numpy.array, shape=[n, n]
 
     """
+
     def __init__(self, K=None):
         """Initialise the Kernel Matrix Transformer"""
 
@@ -63,11 +62,12 @@ class KMTransformer(BaseEstimator, TransformerMixin):
                     try:
                         K = K.mat
                     except Exception:
-                        raise ValueError('If in an sklearn Bunch K must be under mat')
+                        raise ValueError("If in an sklearn Bunch K must be under mat")
                 flag, M = valid_matrix(K, transform=True)
                 if not flag:
-                    raise ValueError('The provided K cannot be converted to a '
-                                     'two dimensional np.array.')
+                    raise ValueError(
+                        "The provided K cannot be converted to a two dimensional np.array."
+                    )
             self.K_ = M
             self._initialized["K"] = True
 
@@ -87,7 +87,7 @@ class KMTransformer(BaseEstimator, TransformerMixin):
         """
         self.initialize()
         if any(x < 0 or x > self.K_.shape[0] for x in X):
-            raise ValueError('')
+            raise ValueError("")
         else:
             self.X = np.array(X)
 
@@ -114,7 +114,7 @@ class KMTransformer(BaseEstimator, TransformerMixin):
         # Initialize the Graph Kernel
         self.initialize()
         if any(x < 0 or x > self.K_.shape[0] for x in X):
-            raise ValueError('')
+            raise ValueError("")
         else:
             self.X = np.array(X)
 
@@ -134,16 +134,23 @@ class KMTransformer(BaseEstimator, TransformerMixin):
             Corresping to the values of the Y indexes with X.
 
         """
-        check_is_fitted(self, 'X')
+        check_is_fitted(self, "X")
         if any(x < 0 or x > self.K_.shape[0] for x in X):
-            raise ValueError('')
+            raise ValueError("")
 
         return self.K_[X, :][:, self.X]
 
 
-def cross_validate_Kfold_SVM(K, y,
-                             n_iter=10, n_splits=10, C_grid=None,
-                             random_state=None, scoring="accuracy", fold_reduce=None):
+def cross_validate_Kfold_SVM(
+    K,
+    y,
+    n_iter=10,
+    n_splits=10,
+    C_grid=None,
+    random_state=None,
+    scoring="accuracy",
+    fold_reduce=None,
+):
     """Cross Validate a list of precomputed kernels with an SVM.
 
     Parameters
@@ -183,11 +190,13 @@ def cross_validate_Kfold_SVM(K, y,
     """
     # Initialise C_grid
     if C_grid is None:
-        C_grid = ((10. ** np.arange(-7, 7, 2)) / len(y)).tolist()
+        C_grid = ((10.0 ** np.arange(-7, 7, 2)) / len(y)).tolist()
     elif type(C_grid) is np.array:
         C_grid = np.squeeze(C_grid)
         if len(C_grid.shape) != 1:
-            raise ValueError('C_grid should either be None or a squeezable to 1 dimension np.array')
+            raise ValueError(
+                "C_grid should either be None or a squeezable to 1 dimension np.array"
+            )
         else:
             C_grid = list(C_grid)
 
@@ -195,14 +204,14 @@ def cross_validate_Kfold_SVM(K, y,
     if fold_reduce is None:
         fold_reduce = np.mean
     elif not isinstance(callable, fold_reduce):
-        raise ValueError('fold_reduce should be a callable')
+        raise ValueError("fold_reduce should be a callable")
 
     # Initialise and check random state
     random_state = check_random_state(random_state)
 
     # Initialise sklearn pipeline objects
     kfolder = KFold(n_splits=n_splits, random_state=random_state, shuffle=True)
-    estimator = make_pipeline(KMTransformer(), SVC(kernel='precomputed'))
+    estimator = make_pipeline(KMTransformer(), SVC(kernel="precomputed"))
 
     # Make all the requested folds
     nfolds = tuple(tuple(kfolder.split(y)) for _ in range(n_iter))
@@ -215,23 +224,32 @@ def cross_validate_Kfold_SVM(K, y,
         elif isinstance(ks, Iterable) and all(valid_matrix(k) for k in ks):
             pg = [{"svc__C": C_grid, "kmtransformer__K": [Bunch(mat=k)]} for k in ks]
         else:
-            raise ValueError('Not a valid object for kernel matrix/ces')
+            raise ValueError("Not a valid object for kernel matrix/ces")
 
         for kfolds in nfolds:
             fold_info = list()
             for train, test in kfolds:
-                gs = GridSearchCV(estimator, param_grid=pg, scoring=scoring,
-                                  cv=ShuffleSplit(n_splits=1,
-                                                  test_size=0.1,
-                                                  random_state=random_state)).fit(train, y[train])
+                gs = GridSearchCV(
+                    estimator,
+                    param_grid=pg,
+                    scoring=scoring,
+                    cv=ShuffleSplit(n_splits=1, test_size=0.1, random_state=random_state),
+                ).fit(train, y[train])
                 fold_info.append(gs.score(test, y[test]))
             mid.append(fold_reduce(fold_info))
         out.append(mid)
     return out
 
 
-def graph_from_networkx(X, node_labels_tag=None, edge_labels_tag=None, edge_weight_tag=None,
-                        as_Graph=False, val_node_labels=None, val_edge_labels=None):
+def graph_from_networkx(
+    X,
+    node_labels_tag=None,
+    edge_labels_tag=None,
+    edge_weight_tag=None,
+    as_Graph=False,
+    val_node_labels=None,
+    val_edge_labels=None,
+):
     """Transform an iterable of networkx objects to an iterable of Graphs.
 
     A function for helping a user that has a collection of graphs in networkx to use grakel.
@@ -268,11 +286,13 @@ def graph_from_networkx(X, node_labels_tag=None, edge_labels_tag=None, edge_weig
 
     """
     import networkx as nx
+
     v2 = False
-    if nx.__version__ > '2.':
+    if nx.__version__ > "2.":
         v2 = True
 
     if node_labels_tag is None:
+
         def nodel_init():
             if val_node_labels is None:
                 return None
@@ -282,17 +302,22 @@ def graph_from_networkx(X, node_labels_tag=None, edge_labels_tag=None, edge_weig
         def nodel_put(nl, u, d):
             if val_node_labels is not None:
                 nl[u] = val_node_labels
+
     elif type(node_labels_tag) is str:
+
         def nodel_init():
             return dict()
 
         def nodel_put(nl, u, d):
             nl[u] = d[u][node_labels_tag]
+
     else:
-        raise ValueError('node_labels_tag must be a str indicating the '
-                         'tag of the labels inside nodes or None')
+        raise ValueError(
+            "node_labels_tag must be a str indicating the tag of the labels inside nodes or None"
+        )
 
     if edge_labels_tag is None:
+
         def edgel_init():
             if val_edge_labels is None:
                 return None
@@ -302,42 +327,59 @@ def graph_from_networkx(X, node_labels_tag=None, edge_labels_tag=None, edge_weig
         def edgel_put(el, u, d):
             if val_edge_labels is not None:
                 el[u] = val_edge_labels
+
     elif type(edge_labels_tag) is str:
+
         def edgel_init():
             return dict()
 
         if v2:
+
             def edgel_put(el, u, d):
                 el[u] = d[u][edge_labels_tag]
+
         else:
+
             def edgel_put(el, u, d):
                 el[u] = d[u[0]][u[1]][edge_labels_tag]
+
     else:
-        raise ValueError('edge_labels_tag must be a str indicating the '
-                         'tag of the labels inside edges or None')
+        raise ValueError(
+            "edge_labels_tag must be a str indicating the tag of the labels inside edges or None"
+        )
 
     if edge_weight_tag is None:
+
         def get_weight(*args):
             return 1.0
+
     elif type(edge_weight_tag) is str:
         if v2:
+
             def get_weight(d, e):
                 return d[e][edge_weight_tag]
+
         else:
+
             def get_weight(d, e):
                 return d[e[0]][e[1]][edge_weight_tag]
 
     else:
-        raise ValueError('weight_labels_tag must be a str indicating  '
-                         'tag of the labels inside edges or None (1.0)')
+        raise ValueError(
+            "weight_labels_tag must be a str indicating  "
+            "tag of the labels inside edges or None (1.0)"
+        )
 
     if not isinstance(X, Iterable):
-        raise ValueError('X must be an iterable')
+        raise ValueError("X must be an iterable")
 
     if v2:
+
         def take_ne(graph):
             return graph.nodes, graph.edges
+
     else:
+
         def take_ne(graph):
             return graph.node, graph.edge
 
@@ -408,13 +450,17 @@ def graph_from_pandas(edge_df, node_df=None, directed=False, as_Graph=False):
     if node_df is None:
         graphs = dict()
         throw_error = False
-    elif (type(node_df) is tuple and
-          len(node_df) == 3 and
-          type(node_df[0]) is DataFrame and
-          (node_df[1] is None or node_df[1] in node_df[0].columns) and
-          (node_df[2] is None or
-           (type(node_df[2]) is not list and node_df[2] in node_df[0].columns) or
-           (type(node_df[2]) is list and all(i in node_df[0].columns for i in node_df[2])))):
+    elif (
+        type(node_df) is tuple
+        and len(node_df) == 3
+        and type(node_df[0]) is DataFrame
+        and (node_df[1] is None or node_df[1] in node_df[0].columns)
+        and (
+            node_df[2] is None
+            or (type(node_df[2]) is not list and node_df[2] in node_df[0].columns)
+            or (type(node_df[2]) is list and all(i in node_df[0].columns for i in node_df[2]))
+        )
+    ):
         df, gtag, labs = node_df
         graphs = defaultdict(lambda: defaultdict(dict))
         if labs is None:
@@ -434,33 +480,48 @@ def graph_from_pandas(edge_df, node_df=None, directed=False, as_Graph=False):
                 graphs[gidx]["node_label"][index] = row[labs]
         throw_error = True
     else:
-        raise ValueError('node_df must be a tuple containing a pandas.DataFrame object '
-                         'a column name corresponding to the valid column index for graphs indexes '
-                         'and a None, column name or list of column names corresponding to no-labels, '
-                         'labels or attributes.')
+        raise ValueError(
+            "node_df must be a tuple containing a pandas.DataFrame object "
+            "a column name corresponding to the valid column index for graphs indexes "
+            "and a None, column name or list of column names corresponding to no-labels, "
+            "labels or attributes."
+        )
 
-    if (type(edge_df) is tuple and
-        len(edge_df) == 5 and
-        type(edge_df[0]) is DataFrame and
-        (edge_df[1] in edge_df[0].columns) and
-        (type(edge_df[2]) is tuple and len(edge_df[2]) == 2 and
-         all(c in edge_df[0].columns for c in edge_df[2])) and
-        (edge_df[3] is None or edge_df[3] in edge_df[0].columns) and
-        (edge_df[4] is None or
-         (type(edge_df[4]) is not list and edge_df[4] in edge_df[0].columns) or
-         (type(edge_df[4]) is list and all(c in edge_df[0].columns for c in edge_df[4])))):
+    if (
+        type(edge_df) is tuple
+        and len(edge_df) == 5
+        and type(edge_df[0]) is DataFrame
+        and (edge_df[1] in edge_df[0].columns)
+        and (
+            type(edge_df[2]) is tuple
+            and len(edge_df[2]) == 2
+            and all(c in edge_df[0].columns for c in edge_df[2])
+        )
+        and (edge_df[3] is None or edge_df[3] in edge_df[0].columns)
+        and (
+            edge_df[4] is None
+            or (type(edge_df[4]) is not list and edge_df[4] in edge_df[0].columns)
+            or (type(edge_df[4]) is list and all(c in edge_df[0].columns for c in edge_df[4]))
+        )
+    ):
         df, gtag, (src_c, dst_c), w_c, labs = edge_df
         if w_c is not None:
+
             def get_weight(row):
                 return row[w_c]
+
         else:
+
             def get_weight(row):
-                return 1.
+                return 1.0
 
         if labs is None:
+
             def set_label(*args):
                 pass
+
         elif type(labs) is list:
+
             def set_label(row, d, e):
                 if d["edge_label"] is None:
                     d["edge_label"] = dict()
@@ -468,7 +529,9 @@ def graph_from_pandas(edge_df, node_df=None, directed=False, as_Graph=False):
                 d["edge_label"][e] = el
                 if not directed:
                     d["edge_label"][(e[1], e[0])] = el
+
         else:
+
             def set_label(row, d, e):
                 if d["edge_label"] is None:
                     d["edge_label"] = dict()
@@ -482,7 +545,7 @@ def graph_from_pandas(edge_df, node_df=None, directed=False, as_Graph=False):
             gidx = row[gtag]
             if gidx not in graphs:
                 if throw_error:
-                    raise ValueError('This graph didn\'t appear on node labels dataframe')
+                    raise ValueError("This graph didn't appear on node labels dataframe")
                 else:
                     graphs[gidx] = dict()
                     graphs[gidx]["graph"] = dict()
@@ -491,36 +554,48 @@ def graph_from_pandas(edge_df, node_df=None, directed=False, as_Graph=False):
                     graphs[gidx]["edge_label"] = None
             if src not in graphs[gidx]["graph"]:
                 if throw_error:
-                    raise ValueError('This node didn\'t appear on node labels dataframe for graph '
-                                     'with id ' + str(gidx))
+                    raise ValueError(
+                        "This node didn't appear on node labels dataframe for graph "
+                        "with id " + str(gidx)
+                    )
                 else:
                     graphs[gidx]["graph"][src] = dict()
             graphs[gidx]["graph"][src][dst] = get_weight(row)
             if not directed:
                 if dst not in graphs[gidx]["graph"]:
                     if throw_error:
-                        raise ValueError('This node didn\'t appear on node labels dataframe '
-                                         'for graph with id ' + str(gidx))
+                        raise ValueError(
+                            "This node didn't appear on node labels dataframe "
+                            "for graph with id " + str(gidx)
+                        )
                     else:
                         graphs[gidx]["graph"][dst] = dict()
                 graphs[gidx]["graph"][dst][src] = get_weight(row)
             set_label(row, graphs[gidx], (src, dst))
     else:
-        raise ValueError('edge_df must be a tuple containing a pandas.DataFrame object '
-                         'a column name corresponding to a valid column index of the dataframe '
-                         'that contain the index of the graph that an edge belongs inside the '
-                         'dataframe, a column name corresponding to weights inside the dataframe'
-                         '(or None if weights do not exist) and a list of column names '
-                         'corresponding or column name corresponding to labels or None '
-                         'if none of this exists')
+        raise ValueError(
+            "edge_df must be a tuple containing a pandas.DataFrame object "
+            "a column name corresponding to a valid column index of the dataframe "
+            "that contain the index of the graph that an edge belongs inside the "
+            "dataframe, a column name corresponding to weights inside the dataframe"
+            "(or None if weights do not exist) and a list of column names "
+            "corresponding or column name corresponding to labels or None "
+            "if none of this exists"
+        )
 
-    return {k: Graph(graphs[k]["graph"], graphs[k]["node_label"], graphs[k]["edge_label"])
-            if as_Graph else [graphs[k]["graph"], graphs[k]["node_label"], graphs[k]["edge_label"]]
-            for k in graphs.keys()}
+    return {
+        k: (
+            Graph(graphs[k]["graph"], graphs[k]["node_label"], graphs[k]["edge_label"])
+            if as_Graph
+            else [graphs[k]["graph"], graphs[k]["node_label"], graphs[k]["edge_label"]]
+        )
+        for k in graphs.keys()
+    }
 
 
-def graph_from_csv(edge_files, node_files=None, index_type=str,
-                   directed=False, sep=",", as_Graph=False):
+def graph_from_csv(
+    edge_files, node_files=None, index_type=str, directed=False, sep=",", as_Graph=False
+):
     """Produces a collection of Graph Objects from a collection of csv files.
 
     A function for helping a user that has a bunch of graph csv
@@ -570,51 +645,65 @@ def graph_from_csv(edge_files, node_files=None, index_type=str,
             any grakel kernel.
 
     """
+
     def edge_files_error():
-        raise ValueError('edge_file argument must contain an iterable of strings of edge files, '
-                         'a bool weight_flag and attributes_flag bool or None')
+        raise ValueError(
+            "edge_file argument must contain an iterable of strings of edge files, "
+            "a bool weight_flag and attributes_flag bool or None"
+        )
 
     def node_files_error():
-        raise ValueError('node_files argument can be None or contain an iterable of strings'
-                         'of edge files and attributes_flag bool or None')
+        raise ValueError(
+            "node_files argument can be None or contain an iterable of strings"
+            "of edge files and attributes_flag bool or None"
+        )
 
     if type(index_type) is not type:
-        raise ValueError('index_type must be a class `type` object')
+        raise ValueError("index_type must be a class `type` object")
 
-    if (type(edge_files) is not tuple or len(edge_files) != 3 or
-            type(edge_files[1]) is not bool or
-            type(edge_files[2]) not in [bool, None]):
+    if (
+        type(edge_files) is not tuple
+        or len(edge_files) != 3
+        or type(edge_files[1]) is not bool
+        or type(edge_files[2]) not in [bool, None]
+    ):
         edge_files_error()
     else:
         if edge_files[1]:
+
             def get_weight(l):
                 return float(l.pop(0))
+
         else:
+
             def get_weight(l):
                 return 1.0
+
         efs = list()
         for e in edge_files[0]:
             if type(e) is not str:
                 edge_files_error()
             if not os.path.isfile(e):
-                raise ValueError('Each edge file address must be a valid address')
+                raise ValueError("Each edge file address must be a valid address")
             efs.append(e)
 
     if type(node_files) is None:
         nfs = None
-    elif (type(node_files) is tuple and len(node_files) == 2 and
-            type(node_files[1]) in [bool, None]):
+    elif (
+        type(node_files) is tuple and len(node_files) == 2 and type(node_files[1]) in [bool, None]
+    ):
         nfs = list()
         for n in node_files[0]:
             if type(n) is not str:
                 edge_files_error()
             if not os.path.isfile(n):
-                raise ValueError('Each edge file address must be a valid address')
+                raise ValueError("Each edge file address must be a valid address")
             nfs.append(n)
     else:
         node_files_error()
 
     if edge_files[2] is None:
+
         def get_el(ef, g):
             el = None
             for line in ef:
@@ -625,11 +714,13 @@ def graph_from_csv(edge_files, node_files=None, index_type=str,
                 if not directed:
                     g[eb][ea] = g[ea][eb]
             return el
+
     elif edge_files[2]:
+
         def get_el(ef, g):
             el = dict()
             for line in ef:
-                q = line.strip('\n').split(sep)
+                q = line.strip("\n").split(sep)
                 ea, eb = [index_type(e) for e in q[:2]]
                 m = q[2:]
                 g[ea][eb] = get_weight(m)
@@ -638,11 +729,13 @@ def graph_from_csv(edge_files, node_files=None, index_type=str,
                     el[(eb, ea)] = el[(ea, eb)]
                     g[eb][ea] = g[ea][eb]
             return el
+
     else:
+
         def get_el(ef, g):
             el = dict()
             for line in ef:
-                q = line.strip('\n').split(sep)
+                q = line.strip("\n").split(sep)
                 ea, eb = [index_type(e) for e in q[:2]]
                 m = q[2:]
                 g[ea][eb] = get_weight(m)
@@ -656,7 +749,7 @@ def graph_from_csv(edge_files, node_files=None, index_type=str,
         for efa in efs:
             nl = None
             graph_object = defaultdict(dict)
-            with open(efa, 'r') as ef:
+            with open(efa, "r") as ef:
                 el = get_el(ef, graph_object)
             graph_object = dict(graph_object)
 
@@ -666,28 +759,30 @@ def graph_from_csv(edge_files, node_files=None, index_type=str,
                 yield [graph_object, nl, el]
     else:
         if len(nfs) != len(efs):
-            raise ValueError('The number of edge files and the number of node files must be the same')
-        for (nfa, efa) in zip(nfs, efs):
+            raise ValueError(
+                "The number of edge files and the number of node files must be the same"
+            )
+        for nfa, efa in zip(nfs, efs):
             graph_object = dict()
-            with open(nfa, 'r') as nf:
+            with open(nfa, "r") as nf:
                 if node_files[1] is None:
                     nl = None
                     for line in nf:
-                        graph_object[index_type(line.strip('\n').split(sep)[0].strip())] = dict()
+                        graph_object[index_type(line.strip("\n").split(sep)[0].strip())] = dict()
                 elif node_files[1]:
                     nl = dict()
                     for line in nf:
-                        q = line.strip('\n').split(sep)
+                        q = line.strip("\n").split(sep)
                         graph_object[index_type(q[0].strip())] = dict()
                         nl[index_type(q[0].strip())] = np.array([float(i.strip()) for i in q[1:]])
                 else:
                     nl = dict()
                     for line in nf:
-                        q = line.strip('\n').split(sep)
+                        q = line.strip("\n").split(sep)
                         graph_object[index_type(q[0].strip())] = dict()
                         nl[index_type(q[0].strip())] = q[1]
 
-            with open(efa, 'r') as ef:
+            with open(efa, "r") as ef:
                 el = get_el(ef, graph_object)
 
             if as_Graph:
@@ -722,18 +817,19 @@ def graph_from_torch_geometric(data, node_one_hot=False, edge_one_hot=False, ign
             Returns a dictionary with keys:
 
                 - 'graph' : `list[grakel.Graph]`
-                    
+
                     + If input is torch_geometric.data.Data returns a single element.
-                    
+
                     + If input is torch_geometric.data.Data returns a list of graphs.
 
                 - 'y' : `list[int]`
-                    
+
                     + List of labels of graphs.
-                    
+
                     + If ignore_y is True this argument is ommited.
 
     """
+
     def one_hot_node(x):
         if node_one_hot:
             return x.argmax().item()
@@ -753,14 +849,16 @@ def graph_from_torch_geometric(data, node_one_hot=False, edge_one_hot=False, ign
             node_labels = {i: one_hot_node(data.x[i]) for i in range(data.x.shape[0])}
 
         if data.edge_attr is not None:
-            edge_labels = {edges[i]: one_hot_edge(data.edge_attr[i]) for i in range(data.edge_attr.shape[0])}
+            edge_labels = {
+                edges[i]: one_hot_edge(data.edge_attr[i]) for i in range(data.edge_attr.shape[0])
+            }
 
-        x = {'graph': Graph(edges, node_labels, edge_labels)}
+        x = {"graph": Graph(edges, node_labels, edge_labels)}
         if data.y is not None:
             try:
-                x['y'] = int(data.y.item())
+                x["y"] = int(data.y.item())
             except:
-                raise ValueError('Either set ignore_y=True or use a ')
+                raise ValueError("Either set ignore_y=True or use a ")
 
         return x
     else:
@@ -773,9 +871,9 @@ def graph_from_torch_geometric(data, node_one_hot=False, edge_one_hot=False, ign
             e = tuple(e)
             group = lookup[e[0]]
             if lookup[e[0]] != lookup[e[1]]:
-                raise ValueError('Both nodes from an edge should correspond to the same graph.')
+                raise ValueError("Both nodes from an edge should correspond to the same graph.")
             edges[group].append(e)
-            if  data.edge_attr is not None:
+            if data.edge_attr is not None:
                 edge_labels[group][e] = one_hot_edge(data.edge_attr[i])
 
         if data.x is not None:
@@ -785,17 +883,30 @@ def graph_from_torch_geometric(data, node_one_hot=False, edge_one_hot=False, ign
 
         x = defaultdict(list)
         for i in group_id:
-            x['graph'].append(
+            x["graph"].append(
                 Graph(
-                  edges[i], 
-                  (node_labels[i] if node_labels is not None else None),
-                  (edge_labels[i] if edge_labels is not None else None)
+                    edges[i],
+                    (node_labels[i] if node_labels is not None else None),
+                    (edge_labels[i] if edge_labels is not None else None),
                 )
             )
             if not ignore_y:
                 if data.y is not None:
                     try:
-                        x['y'].append(int(data.y[i].item()))
+                        x["y"].append(int(data.y[i].item()))
                     except:
-                        raise ValueError('Either set ignore_y=True or input a Data/DataBatch with y attribute.')
+                        raise ValueError(
+                            "Either set ignore_y=True or input a Data/DataBatch with y attribute."
+                        )
         return x
+
+
+__all__ = [
+    "EPS",
+    "KMTransformer",
+    "cross_validate_Kfold_SVM",
+    "graph_from_networkx",
+    "graph_from_pandas",
+    "graph_from_csv",
+    "graph_from_torch_geometric",
+]

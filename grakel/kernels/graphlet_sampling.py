@@ -1,26 +1,25 @@
 """The graphlet sampling kernel :cite:`shervashidze2009efficient`."""
+
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
 import math
 import warnings
+from builtins import range
 
 import numpy as np
-
 from scipy.interpolate import interp1d
+
+# Python 2/3 cross-compatibility import
+from six import iteritems, itervalues
+from six.moves.collections_abc import Iterable
 from sklearn.exceptions import NotFittedError
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 from grakel.kernels._c_functions import ConSubg
 from grakel.kernels._isomorphism import Graph as bGraph
-
-# Python 2/3 cross-compatibility import
-from six import iteritems
-from six import itervalues
-from six.moves.collections_abc import Iterable
-from builtins import range
 
 
 class GraphletSampling(Kernel):
@@ -112,16 +111,11 @@ class GraphletSampling(Kernel):
 
     _graph_format = "adjacency"
 
-    def __init__(self,
-                 n_jobs=None,
-                 normalize=False, verbose=False,
-                 random_state=None,
-                 k=5,
-                 sampling=None):
+    def __init__(
+        self, n_jobs=None, normalize=False, verbose=False, random_state=None, k=5, sampling=None
+    ):
         """Initialise a subtree_wl kernel."""
-        super(GraphletSampling, self).__init__(n_jobs=n_jobs,
-                                               normalize=normalize,
-                                               verbose=verbose)
+        super(GraphletSampling, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
 
         self.random_state = random_state
         self.k = k
@@ -133,7 +127,7 @@ class GraphletSampling(Kernel):
         self._graph_bins = dict()
         if not self._initialized["n_jobs"]:
             if self.n_jobs is not None:
-                warnings.warn('no implemented parallelization for GraphletSampling')
+                warnings.warn("no implemented parallelization for GraphletSampling")
             self._initialized["n_jobs"] = True
 
         if not self._initialized["random_state"]:
@@ -142,13 +136,12 @@ class GraphletSampling(Kernel):
 
         if not self._initialized["k"]:
             if type(self.k) is not int:
-                raise TypeError('k must be an int')
+                raise TypeError("k must be an int")
 
             if self.k > 10:
-                warnings.warn('graphlets are too big - '
-                              'computation may be slow')
+                warnings.warn("graphlets are too big - computation may be slow")
             elif self.k < 3:
-                raise TypeError('k must be bigger than 3')
+                raise TypeError("k must be bigger than 3")
 
             self._initialized["k"] = True
 
@@ -160,23 +153,24 @@ class GraphletSampling(Kernel):
 
                 def sample_graphlets(A, k, *args):
                     return sample_graphlets_all_connected(A, k)
+
             elif type(sampling) is dict:
                 if "n_samples" in sampling:
                     # Get the number of samples
                     n_samples = sampling["n_samples"]
 
                     # Display a warning if arguments ignored
-                    args = [arg for arg in ["delta", "epsilon", "a"]
-                            if arg in sampling]
+                    args = [arg for arg in ["delta", "epsilon", "a"] if arg in sampling]
                     if len(args):
-                        warnings.warn('Number of samples defined as input, ' +
-                                      'ignoring arguments:', ', '.join(args))
+                        warnings.warn(
+                            "Number of samples defined as input, " + "ignoring arguments:",
+                            ", ".join(args),
+                        )
 
                     # Initialise the sample graphlets function
                     sample_graphlets = sample_graphlets_probabilistic
 
-                elif ("delta" in sampling or "epsilon" in sampling
-                        or "a" in sampling):
+                elif "delta" in sampling or "epsilon" in sampling or "a" in sampling:
                     # Otherwise if delta exists
                     delta = sampling.get("delta", 0.05)
                     # or epsilon
@@ -186,46 +180,57 @@ class GraphletSampling(Kernel):
 
                     # check the fit constraints
                     if delta > 1 or delta < 0:
-                        raise TypeError('delta must be in the range (0,1)')
+                        raise TypeError("delta must be in the range (0,1)")
 
                     if epsilon > 1 or epsilon < 0:
-                        raise TypeError('epsilon must be in the range (0,1)')
+                        raise TypeError("epsilon must be in the range (0,1)")
 
                     if type(a) is not int:
-                        raise TypeError('a must be an integer')
+                        raise TypeError("a must be an integer")
                     elif a == 0:
-                        raise TypeError('a cannot be zero')
+                        raise TypeError("a cannot be zero")
                     elif a < -1:
-                        raise TypeError('negative a smaller than -1 have '
-                                        'no meaning')
+                        raise TypeError("negative a smaller than -1 have no meaning")
 
-                    if(a == -1):
-                        fallback_map = {1: 1, 2: 2, 3: 4, 4: 8, 5: 19, 6: 53,
-                                        7: 209, 8: 1253, 9: 13599}
-                        if(k > 9):
+                    if a == -1:
+                        fallback_map = {
+                            1: 1,
+                            2: 2,
+                            3: 4,
+                            4: 8,
+                            5: 19,
+                            6: 53,
+                            7: 209,
+                            8: 1253,
+                            9: 13599,
+                        }
+                        if k > 9:
                             warnings.warn(
-                                'warning for such size number of isomorphisms '
-                                'is not known - interpolation on know values '
-                                'will be used')
+                                "warning for such size number of isomorphisms "
+                                "is not known - interpolation on know values "
+                                "will be used"
+                            )
                             # Use interpolations
 
-                            isomorphism_prediction = \
-                                interp1d(list(fallback_map.keys()),
-                                         list(itervalues(fallback_map)),
-                                         kind='cubic')
+                            isomorphism_prediction = interp1d(
+                                list(fallback_map.keys()),
+                                list(itervalues(fallback_map)),
+                                kind="cubic",
+                            )
                             a = isomorphism_prediction(k)
                         else:
                             a = fallback_map[k]
 
                     # and calculate number of samples
-                    n_samples = math.ceil(2*(a*np.log10(2) +
-                                          np.log10(1/delta))/(epsilon**2))
+                    n_samples = math.ceil(
+                        2 * (a * np.log10(2) + np.log10(1 / delta)) / (epsilon**2)
+                    )
 
                     sample_graphlets = sample_graphlets_probabilistic
                 else:
-                    raise ValueError('sampling doesn\'t have a valid dictionary format')
+                    raise ValueError("sampling doesn't have a valid dictionary format")
             else:
-                raise TypeError('sampling can either be a dictionary or None')
+                raise TypeError("sampling can either be a dictionary or None")
             self.sample_graphlets_ = sample_graphlets
             self.k_ = k
             self.n_samples_ = n_samples
@@ -252,31 +257,30 @@ class GraphletSampling(Kernel):
         """
         self._method_calling = 3
         # Check is fit had been called
-        check_is_fitted(self, ['X'])
+        check_is_fitted(self, ["X"])
 
         # Input validation and parsing
         if X is None:
-            raise ValueError('transform input cannot be None')
+            raise ValueError("transform input cannot be None")
         else:
             Y = self.parse_input(X)
 
         # Transform - calculate kernel matrix
         try:
-            check_is_fitted(self, ['_phi_X'])
+            check_is_fitted(self, ["_phi_X"])
             phi_x = self._phi_X
         except NotFittedError:
             phi_x = np.zeros(shape=(self._nx, len(self._graph_bins)))
-            for ((i, j), v) in iteritems(self.X):
+            for (i, j), v in iteritems(self.X):
                 phi_x[i, j] = v
             self._phi_X = phi_x
-        phi_y = np.zeros(shape=(self._ny, len(self._graph_bins) +
-                                len(self._Y_graph_bins)))
-        for ((i, j), v) in iteritems(Y):
+        phi_y = np.zeros(shape=(self._ny, len(self._graph_bins) + len(self._Y_graph_bins)))
+        for (i, j), v in iteritems(Y):
             phi_y[i, j] = v
 
         # store _phi_Y for independent (of normalization arg diagonal-calls)
         self._phi_Y = phi_y
-        km = np.dot(phi_y[:, :len(self._graph_bins)], phi_x.T)
+        km = np.dot(phi_y[:, : len(self._graph_bins)], phi_x.T)
         self._is_transformed = True
         if self.normalize:
             X_diag, Y_diag = self.diagonal()
@@ -312,7 +316,7 @@ class GraphletSampling(Kernel):
 
         # calculate feature matrices.
         phi_x = np.zeros(shape=(self._nx, len(self._graph_bins)))
-        for ((i, j), v) in iteritems(self.X):
+        for (i, j), v in iteritems(self.X):
             phi_x[i, j] = v
 
         # Transform - calculate kernel matrix
@@ -347,16 +351,16 @@ class GraphletSampling(Kernel):
 
         """
         # Check is fit had been called
-        check_is_fitted(self, ['_phi_X'])
+        check_is_fitted(self, ["_phi_X"])
         try:
-            check_is_fitted(self, ['_X_diag'])
+            check_is_fitted(self, ["_X_diag"])
         except NotFittedError:
             # Calculate diagonal of X
             self._X_diag = np.sum(np.square(self._phi_X), axis=1)
 
         try:
             # If transform has happened return Y
-            check_is_fitted(self, ['_phi_Y'])
+            check_is_fitted(self, ["_phi_Y"])
             Y_diag = np.sum(np.square(self._phi_Y), axis=1)
             return self._X_diag, Y_diag
         except NotFittedError:
@@ -384,7 +388,7 @@ class GraphletSampling(Kernel):
 
         """
         if not isinstance(X, Iterable):
-            raise TypeError('input must be an iterable\n')
+            raise TypeError("input must be an iterable\n")
         else:
             i = -1
             if self._method_calling == 1:
@@ -392,7 +396,7 @@ class GraphletSampling(Kernel):
             elif self._method_calling == 3:
                 self._Y_graph_bins = dict()
             local_values = dict()
-            for (idx, x) in enumerate(iter(X)):
+            for idx, x in enumerate(iter(X)):
                 is_iter = False
                 if isinstance(x, Iterable):
                     is_iter = True
@@ -401,23 +405,23 @@ class GraphletSampling(Kernel):
                     A = x.get_adjacency_matrix()
                 elif is_iter and len(x) in [0, 1, 2, 3]:
                     if len(x) == 0:
-                        warnings.warn('Ignoring empty element on ' +
-                                      'index: '+str(idx))
+                        warnings.warn("Ignoring empty element on " + "index: " + str(idx))
                         continue
                     else:
-                        A = Graph(x[0], {}, {},
-                                  self._graph_format).get_adjacency_matrix()
+                        A = Graph(x[0], {}, {}, self._graph_format).get_adjacency_matrix()
                 else:
-                    raise TypeError('each element of X must be either a ' +
-                                    'graph or an iterable with at least 1 ' +
-                                    'and at most 3 elements\n')
+                    raise TypeError(
+                        "each element of X must be either a "
+                        + "graph or an iterable with at least 1 "
+                        + "and at most 3 elements\n"
+                    )
                 A = (A > 0).astype(int)
                 i += 1
                 # sample graphlets based on the initialized method
                 samples = self.sample_graphlets_(A, self.k_, self.n_samples_, self.random_state_)
 
                 if self._method_calling == 1:
-                    for (j, sg) in enumerate(samples):
+                    for j, sg in enumerate(samples):
                         # add the graph to an isomorphism class
                         if len(self._graph_bins) == 0:
                             self._graph_bins[0] = sg
@@ -435,7 +439,7 @@ class GraphletSampling(Kernel):
                                 local_values[(i, len(self._graph_bins))] = 1
                                 self._graph_bins[len(self._graph_bins)] = sg
                 elif self._method_calling == 3:
-                    for (j, sg) in enumerate(samples):
+                    for j, sg in enumerate(samples):
                         # add the graph to an isomorphism class
                         newbin = True
                         for k in range(len(self._graph_bins)):
@@ -467,12 +471,12 @@ class GraphletSampling(Kernel):
                                     self._Y_graph_bins[start_Y] = sg
 
             if i == -1:
-                raise ValueError('parsed input is empty')
+                raise ValueError("parsed input is empty")
 
             if self._method_calling == 1:
-                self._nx = i+1
+                self._nx = i + 1
             elif self._method_calling == 3:
-                self._ny = i+1
+                self._ny = i + 1
             return local_values
 
 
@@ -504,11 +508,14 @@ def sample_graphlets_probabilistic(A, k, n_samples, rs):
     s = list(range(A.shape[0]))
     min_r, max_r = min(3, A.shape[0]), min(k, A.shape[0])
     if min_r == max_r:
+
         def rsamp(*args):
             return min_r
+
     else:
+
         def rsamp(*args):
-            return rs.randint(min_r, max_r+1)
+            return rs.randint(min_r, max_r + 1)
 
     for i in range(n_samples):
         index_rand = rs.choice(s, rsamp(), replace=False)

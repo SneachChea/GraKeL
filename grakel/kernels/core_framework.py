@@ -1,20 +1,20 @@
 """The core kernel framework as defined in :cite:`nikolentzos2018degeneracy`."""
+
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
 import warnings
 
 import numpy as np
 
+# Python 2/3 cross-compatibility import
+from six import iteritems
+from six.moves.collections_abc import Iterable
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
 
 from grakel.graph import Graph
-from grakel.kernels import Kernel
+from grakel.kernels.kernel import Kernel
 from grakel.kernels.shortest_path import ShortestPath
-
-# Python 2/3 cross-compatibility import
-from six import iteritems
-from six.moves.collections_abc import Iterable
 
 
 class CoreFramework(Kernel):
@@ -41,11 +41,11 @@ class CoreFramework(Kernel):
 
     _graph_format = "dictionary"
 
-    def __init__(self, n_jobs=None, verbose=False,
-                 normalize=False, min_core=-1, base_graph_kernel=None):
+    def __init__(
+        self, n_jobs=None, verbose=False, normalize=False, min_core=-1, base_graph_kernel=None
+    ):
         """Initialise a `hadamard_code` kernel."""
-        super(CoreFramework, self).__init__(
-            n_jobs=n_jobs, verbose=verbose, normalize=normalize)
+        super(CoreFramework, self).__init__(n_jobs=n_jobs, verbose=verbose, normalize=normalize)
 
         self.min_core = -1
         self.base_graph_kernel = base_graph_kernel
@@ -55,7 +55,7 @@ class CoreFramework(Kernel):
         """Initialize all transformer arguments, needing initialization."""
         if not self._initialized["n_jobs"]:
             if self.n_jobs is not None:
-                warnings.warn('no implemented parallelization for CoreFramework')
+                warnings.warn("no implemented parallelization for CoreFramework")
             self._initialized["n_jobs"] = True
 
         if not self._initialized["base_graph_kernel"]:
@@ -68,19 +68,21 @@ class CoreFramework(Kernel):
                 try:
                     base_graph_kernel, params = base_graph_kernel
                 except Exception:
-                    raise TypeError('Base kernel was not formulated in '
-                                    'the correct way. '
-                                    'Check documentation.')
+                    raise TypeError(
+                        "Base kernel was not formulated in the correct way. Check documentation."
+                    )
 
-                if not (type(base_graph_kernel) is type and
-                        issubclass(base_graph_kernel, Kernel)):
-                    raise TypeError('The first argument must be a valid '
-                                    'grakel.kernel.kernel Object')
+                if not (type(base_graph_kernel) is type and issubclass(base_graph_kernel, Kernel)):
+                    raise TypeError(
+                        "The first argument must be a valid grakel.kernel.kernel Object"
+                    )
                 if type(params) is not dict:
-                    raise ValueError('If the second argument of base '
-                                     'kernel exists, it must be a diction'
-                                     'ary between parameters names and '
-                                     'values')
+                    raise ValueError(
+                        "If the second argument of base "
+                        "kernel exists, it must be a diction"
+                        "ary between parameters names and "
+                        "values"
+                    )
                 params.pop("normalize", None)
 
             params["normalize"] = False
@@ -120,18 +122,17 @@ class CoreFramework(Kernel):
         """
         # Input validation and parsing
         if not isinstance(X, Iterable):
-            raise TypeError('input must be an iterable\n')
+            raise TypeError("input must be an iterable\n")
         else:
             nx, max_core_number, core_numbers, graphs = 0, 0, [], []
-            for (idx, x) in enumerate(iter(X)):
+            for idx, x in enumerate(iter(X)):
                 is_iter = False
                 extra = tuple()
                 if isinstance(x, Iterable):
                     x, is_iter = list(x), True
                 if is_iter and len(x) >= 0:
                     if len(x) == 0:
-                        warnings.warn('Ignoring empty element on index: '
-                                      + str(idx))
+                        warnings.warn("Ignoring empty element on index: " + str(idx))
                         continue
                     elif len(x) == 1:
                         x = Graph(x[0], {}, {}, graph_format="adjacency")
@@ -143,14 +144,18 @@ class CoreFramework(Kernel):
                         x = Graph(x[0], x[1], x[2], graph_format="adjacency")
                 elif type(x) is Graph:
                     x.desired_format("adjacency")
-                    x = Graph(x.get_adjacency_matrix(),
-                              x.get_labels(purpose="adjacency", label_type="vertex", return_none=True),
-                              x.get_labels(purpose="adjacency", label_type="edge", return_none=True))
+                    x = Graph(
+                        x.get_adjacency_matrix(),
+                        x.get_labels(purpose="adjacency", label_type="vertex", return_none=True),
+                        x.get_labels(purpose="adjacency", label_type="edge", return_none=True),
+                    )
                 else:
-                    raise TypeError('each element of X must be either a '
-                                    'graph object or a list with at least '
-                                    'a graph like object and node labels '
-                                    'dict \n')
+                    raise TypeError(
+                        "each element of X must be either a "
+                        "graph object or a list with at least "
+                        "a graph like object and node labels "
+                        "dict \n"
+                    )
                 # workaround for leaving a sparse representation for x
                 x.change_format(self._graph_format)
                 c = core_number(x)
@@ -160,10 +165,10 @@ class CoreFramework(Kernel):
 
                 nx += 1
             if nx == 0:
-                raise ValueError('parsed input is empty')
+                raise ValueError("parsed input is empty")
 
         if max_core_number <= self.min_core:
-            raise ValueError('The maximum core equals the min_core boundary set in init.')
+            raise ValueError("The maximum core equals the min_core boundary set in init.")
 
         # Add the zero iteration element
         if self._method_calling == 2:
@@ -176,7 +181,7 @@ class CoreFramework(Kernel):
         base_graph_kernel, indexes_list = dict(), dict()
         for i in range(max_core_number, self.min_core, -1):
             subgraphs, indexes = list(), list()
-            for (idx, (cn, (g, extra))) in enumerate(zip(core_numbers, graphs)):
+            for idx, (cn, (g, extra)) in enumerate(zip(core_numbers, graphs)):
                 vertices = [k for k, v in iteritems(cn) if v >= i]
                 if len(vertices) > 0:
                     # Calculate subgraph and store the index of the non-empty vertices
@@ -184,14 +189,14 @@ class CoreFramework(Kernel):
                     sub_extra = list()
                     indexes.append(idx)
                     if len(extra) > 0:
-                        vs = np.array(sg.get_vertices(purpose='any'))
+                        vs = np.array(sg.get_vertices(purpose="any"))
                         for e in extra:
                             # This case will only be reached by now if the user add the propagation
                             # kernel as subkernel with a custom propagation matrix. This is a workaround!
                             if type(e) is np.array and len(e.shape) == 2:
                                 e = e[vs, :][:, vs]
                             sub_extra.append(e)
-                        subgraphs.append((sg, ) + tuple(sub_extra))
+                        subgraphs.append((sg,) + tuple(sub_extra))
                     else:
                         subgraphs.append(sg)
             indexes = np.array(indexes)
@@ -256,18 +261,18 @@ class CoreFramework(Kernel):
         """
         self._method_calling = 3
         # Check is fit had been called
-        check_is_fitted(self, ['X'])
+        check_is_fitted(self, ["X"])
 
         # Input validation and parsing
         if X is None:
-            raise ValueError('transform input cannot be None')
+            raise ValueError("transform input cannot be None")
         else:
             km = self.parse_input(X)
 
         self._is_transformed = True
         if self.normalize:
             X_diag, Y_diag = self.diagonal()
-            old_settings = np.seterr(divide='ignore')
+            old_settings = np.seterr(divide="ignore")
             km /= np.sqrt(np.outer(Y_diag, X_diag))
             km = np.nan_to_num(km)
             np.seterr(**old_settings)
@@ -302,13 +307,13 @@ class CoreFramework(Kernel):
         self._is_transformed = False
         self.initialize()
         if X is None:
-            raise ValueError('transform input cannot be None')
+            raise ValueError("transform input cannot be None")
         else:
             km, self.X = self.parse_input(X)
 
         self._X_diag = np.diagonal(km)
         if self.normalize:
-            old_settings = np.seterr(divide='ignore')
+            old_settings = np.seterr(divide="ignore")
             km = np.nan_to_num(np.divide(km, np.sqrt(np.outer(self._X_diag, self._X_diag))))
             np.seterr(**old_settings)
         return km
@@ -335,9 +340,9 @@ class CoreFramework(Kernel):
 
         """
         # Check if fit had been called
-        check_is_fitted(self, ['X'])
+        check_is_fitted(self, ["X"])
         try:
-            check_is_fitted(self, ['_X_diag'])
+            check_is_fitted(self, ["_X_diag"])
             Y_diag = np.zeros(shape=(self._t_nx,))
             if self._is_transformed:
                 max_core_number = min(self._max_core_number_trans, self._max_core_number)
@@ -371,7 +376,7 @@ class CoreFramework(Kernel):
             self._X_diag = X_diag
         if self._is_transformed:
             if len(self._dummy_kernel):
-                for (idx, bk) in iteritems(self._dummy_kernel):
+                for idx, bk in iteritems(self._dummy_kernel):
                     Y_diag[self._transform_indexes[idx]] += bk.diagonal()
             return self._X_diag, Y_diag
         else:
@@ -393,7 +398,7 @@ def core_number(G):
 
     """
     nbrs, degrees = dict(), dict()
-    for v in G.get_vertices(purpose='any'):
+    for v in G.get_vertices(purpose="any"):
         ns = G.neighbors(v)
         nbrs[v] = ns
         degrees[v] = len(ns)
@@ -402,7 +407,7 @@ def core_number(G):
     curr_degree = 0
     for i, v in enumerate(nodes):
         if degrees[v] > curr_degree:
-            bin_boundaries.extend([i]*(degrees[v]-curr_degree))
+            bin_boundaries.extend([i] * (degrees[v] - curr_degree))
             curr_degree = degrees[v]
     node_pos = dict((v, pos) for pos, v in enumerate(nodes))
     core = degrees
@@ -420,31 +425,26 @@ def core_number(G):
     return core
 
 
-if __name__ == '__main__':
-    from grakel.datasets import fetch_dataset
+if __name__ == "__main__":
     import argparse
+
+    from grakel.datasets import fetch_dataset
+
     # Create an argument parser for the installer of pynauty
     parser = argparse.ArgumentParser(
-        description='Measuring classification accuracy '
-                    ' on multiscale_laplacian_fast')
-
-    parser.add_argument(
-        '--dataset',
-        help='choose the dataset you want the tests to be executed',
-        type=str,
-        default="MUTAG"
+        description="Measuring classification accuracy  on multiscale_laplacian_fast"
     )
 
     parser.add_argument(
-        '--full',
-        help='fit_transform the full graph',
-        action="store_true")
+        "--dataset",
+        help="choose the dataset you want the tests to be executed",
+        type=str,
+        default="MUTAG",
+    )
 
-    parser.add_argument(
-        '--mc',
-        help='the min_core kernel parameter',
-        type=int,
-        default=-1)
+    parser.add_argument("--full", help="fit_transform the full graph", action="store_true")
+
+    parser.add_argument("--mc", help="the min_core kernel parameter", type=int, default=-1)
 
     # Get the dataset name
     args = parser.parse_args()
@@ -452,20 +452,23 @@ if __name__ == '__main__':
     full = bool(args.full)
     mc = int(args.mc)
     # The baseline dataset for node/edge-attributes
-    dataset_attr = fetch_dataset(dataset_name,
-                                 with_classes=True,
-                                 produce_labels_nodes=True,
-                                 prefer_attr_nodes=False,
-                                 verbose=True)
+    dataset_attr = fetch_dataset(
+        dataset_name,
+        with_classes=True,
+        produce_labels_nodes=True,
+        prefer_attr_nodes=False,
+        verbose=True,
+    )
 
-    from tqdm import tqdm
     from time import time
 
+    from sklearn import svm
     from sklearn.metrics import accuracy_score
     from sklearn.model_selection import KFold
-    from sklearn import svm
-    from grakel.kernels import WeisfeilerLehman
-    from grakel.kernels import VertexHistogram
+    from tqdm import tqdm
+
+    from grakel.kernels import VertexHistogram, WeisfeilerLehman
+
     # from grakel.kernels import ShortestPath
 
     def sec_to_time(sec):
@@ -473,17 +476,17 @@ if __name__ == '__main__':
         dt = list()
         days = int(sec // 86400)
         if days > 0:
-            sec -= 86400*days
+            sec -= 86400 * days
             dt.append(str(days) + " d")
 
         hrs = int(sec // 3600)
         if hrs > 0:
-            sec -= 3600*hrs
+            sec -= 3600 * hrs
             dt.append(str(hrs) + " h")
 
         mins = int(sec // 60)
         if mins > 0:
-            sec -= 60*mins
+            sec -= 60 * mins
             dt.append(str(mins) + " m")
 
         if sec > 0:
@@ -494,22 +497,21 @@ if __name__ == '__main__':
     # https://ls11-www.cs.tu-dortmund.de/staff/morris/graphkerneldatasets
     # the biggest collection of benchmark datasets for graph_kernels.
     G, y = dataset_attr.data, dataset_attr.target
-    C_grid = (10. ** np.arange(-7, 7, 2) / len(G)).tolist()
+    C_grid = (10.0 ** np.arange(-7, 7, 2) / len(G)).tolist()
 
     stats = {"acc": list(), "time": list()}
 
     kf = KFold(n_splits=10, random_state=42, shuffle=True)
     niter = kf.get_n_splits(y)
 
-    for (k, (train_index, test_index)) in tqdm(enumerate(kf.split(G, y)),
-                                               total=niter):
+    for k, (train_index, test_index) in tqdm(enumerate(kf.split(G, y)), total=niter):
         # Train-test split of graph data
         tri = train_index.tolist()
         tei = test_index.tolist()
 
         G_train, G_test = list(), list()
         y_train, y_test = list(), list()
-        for (i, (g, t)) in enumerate(zip(G, y)):
+        for i, (g, t) in enumerate(zip(G, y)):
             if len(tri) and i == tri[0]:
                 G_train.append(g)
                 y_train.append(t)
@@ -539,7 +541,7 @@ if __name__ == '__main__':
         acc = 0
         for c in C_grid:
             # Initialise an SVM and fit.
-            clf = svm.SVC(kernel='precomputed', C=c)
+            clf = svm.SVC(kernel="precomputed", C=c)
 
             # Fit on the train Kernel
             clf.fit(K_train, y_train)
@@ -551,9 +553,13 @@ if __name__ == '__main__':
             acc = max(acc, accuracy_score(y_test, y_pred))
 
         stats["acc"].append(acc)
-        stats["time"].append(end-start)
+        stats["time"].append(end - start)
 
     print("Mean values of", niter, "iterations:")
-    print("Core-Framework/WL/Subtree", "> Accuracy:",
-          str(round(np.mean(stats["acc"])*100, 2)),
-          "% | Took:", sec_to_time(np.mean(stats["time"])))
+    print(
+        "Core-Framework/WL/Subtree",
+        "> Accuracy:",
+        str(round(np.mean(stats["acc"]) * 100, 2)),
+        "% | Took:",
+        sec_to_time(np.mean(stats["time"])),
+    )

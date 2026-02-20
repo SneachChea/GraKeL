@@ -53,36 +53,46 @@ In case you find a bug, please open an [issue](https://github.com/ysig/GraKeL/is
 
 The GraKeL library requires the following packages to be installed:
 
-* Python (>=2.7, >=3.5)
-* NumPy (>=1.8.2)
-* SciPy (>=0.13.3)
-* Cython (>=0.27.3)
+* Python (>=3.10)
+* NumPy (>=1.23.0)
+* SciPy (>=1.8.0)
+* Cython (>=0.29.36)
 * cvxopt (>=1.2.0) [optional]
-* future (>=0.16.0) (for python 2.7)
+* future (>=0.16.0)
 
 To install the package, run:
 
 ```sh
-$ pip install grakel
+pip install grakel
+```
+
+For local development with Poetry:
+
+```sh
+conda activate grakel_fork
+poetry install --with dev,test
+poetry run python setup.py build_ext --inplace
+poetry run pre-commit install
 ```
 
 ## Running tests
 
 To test the package, execute:
+
 ```sh
-$ pytest
+poetry run pytest
 ```
 
 ## Running examples
 
 ```
-$ cd examples
-$ python shortest_path.py
+cd examples
+python shortest_path.py
 ```
 
 ## Cite
 
-If you use GraKeL in a scientific publication, please cite our paper (http://jmlr.org/papers/volume21/18-370/18-370.pdf):
+If you use GraKeL in a scientific publication, please cite our paper (<http://jmlr.org/papers/volume21/18-370/18-370.pdf>):
 
 ```bibtex
 @article{JMLR:v21:18-370,
@@ -98,7 +108,7 @@ If you use GraKeL in a scientific publication, please cite our paper (http://jml
 
 ## License
 
-GraKeL is distributed under the __BSD 3-clause__ license. The library makes use of the C++ source code of [BLISS](http://www.tcs.hut.fi/Software/bliss) (a tool for computing automorphism groups and canonical labelings of graphs) which is __LGPL__ licensed. Futhermore, the [cvxopt](https://cvxopt.org/) package (a software package for convex optimization) which is an optional dependency of GraKeL is __GPL__ licensed.
+GraKeL is distributed under the **BSD 3-clause** license. The library makes use of the C++ source code of [BLISS](http://www.tcs.hut.fi/Software/bliss) (a tool for computing automorphism groups and canonical labelings of graphs) which is **LGPL** licensed. Futhermore, the [cvxopt](https://cvxopt.org/) package (a software package for convex optimization) which is an optional dependency of GraKeL is **GPL** licensed.
 
 ## Acknowledgements
 
