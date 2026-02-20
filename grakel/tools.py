@@ -3,13 +3,13 @@
 from __future__ import generators
 
 import operator
+from collections.abc import Hashable
 
 import numpy as np
 
 # Python 2/3 cross-compatibility import
 from future.utils import iteritems
 from scipy.special import binom as binomial
-from six.moves.collections_abc import Hashable
 
 
 class priority_dict(dict, object):

@@ -1,19 +1,13 @@
 """A python file that implements a class and functions for graphs."""
 
-from __future__ import absolute_import
-
 import copy
 import numbers
 import warnings
-from builtins import range
+from collections.abc import Iterable
 
 import numpy as np
 from scipy.sparse import isspmatrix
 from scipy.sparse.csgraph import laplacian
-
-# Python 2/3 cross-compatibility import
-from six import iteritems, itervalues
-from six.moves.collections_abc import Iterable
 
 from .tools import inv_dict, nested_dict_add, priority_dict
 
@@ -146,7 +140,12 @@ class Graph(object):
     laplacian_graph = None
 
     def __init__(
-        self, initialization_object=None, node_labels=None, edge_labels=None, graph_format="auto", construct_labels=False
+        self,
+        initialization_object=None,
+        node_labels=None,
+        edge_labels=None,
+        graph_format="auto",
+        construct_labels=False,
     ):
         """__init__ function of the graph object."""
         self.construct_label = construct_labels
@@ -157,7 +156,10 @@ class Graph(object):
             elif graph_format == "auto":
                 raise ValueError("no initialization object " + "- format must not be auto")
         else:
-            raise ValueError("Invalid graph format.\nValid graph formats" + ' are "all", "dictionary", "adjacency", "auto"')
+            raise ValueError(
+                "Invalid graph format.\nValid graph formats"
+                + ' are "all", "dictionary", "adjacency", "auto"'
+            )
 
     def build_graph(self, g, node_labels=None, edge_labels=None):
         """Build a graph structure, given a supported graph representation.
@@ -247,7 +249,8 @@ class Graph(object):
         """
         if graph_format not in ["all", "dictionary", "adjacency"]:
             raise ValueError(
-                "Invalid graph format for function change format" + '. Valid formats are "all", "dictionary", "adjacency"'
+                "Invalid graph format for function change format"
+                + '. Valid formats are "all", "dictionary", "adjacency"'
             )
         else:
             if graph_format is not self._format:
@@ -326,7 +329,9 @@ class Graph(object):
             if label_type == "vertex":
                 self.index_node_labels = dict(zip(nodes, nodes))
             elif label_type == "edge":
-                self.index_edge_labels = {(i, j): self.adjacency_matrix[i, j] for i in nodes for j in nodes}
+                self.index_edge_labels = {
+                    (i, j): self.adjacency_matrix[i, j] for i in nodes for j in nodes
+                }
             else:
                 warnings.warn("unsupported label type")
         elif purpose == "dictionary":
@@ -336,7 +341,9 @@ class Graph(object):
             elif label_type == "edge":
                 self.index_edge_labels = {
                     (i, j): (
-                        0 if (i not in self.edge_dictionary) or (j not in self.edge_dictionary[i]) else self.edge_dictionary[i][j]
+                        0
+                        if (i not in self.edge_dictionary) or (j not in self.edge_dictionary[i])
+                        else self.edge_dictionary[i][j]
                     )
                     for i in nodes
                     for j in nodes
@@ -376,10 +383,15 @@ class Graph(object):
                 if cond_labels_nodes or cond_labels_edges:
                     lov_sorted = sorted(list(self.vertices))
                     if cond_labels_nodes:
-                        self.index_node_labels = {i: self.node_labels[k] for (i, k) in enumerate(lov_sorted)}
+                        self.index_node_labels = {
+                            i: self.node_labels[k] for (i, k) in enumerate(lov_sorted)
+                        }
                     if cond_labels_edges:
                         vi = {v: i for (i, v) in enumerate(lov_sorted)}
-                        self.index_edge_labels = {(vi[k], vi[q]): self.edge_labels[(k, q)] for (k, q) in self.edge_labels.keys()}
+                        self.index_edge_labels = {
+                            (vi[k], vi[q]): self.edge_labels[(k, q)]
+                            for (k, q) in self.edge_labels.keys()
+                        }
                 else:
                     if not init:
                         warnings.warn("no labels to convert from, " + "for the given purpose")
@@ -462,7 +474,9 @@ class Graph(object):
                     raise ValueError("no label assigned to this edge symbol")
             else:
                 warnings.warn("labels are not set - default value returned")
-                if (edge[0] not in self.edge_dictionary) or (edge[1] not in self.edge_dictionary[edge[0]]):
+                if (edge[0] not in self.edge_dictionary) or (
+                    edge[1] not in self.edge_dictionary[edge[0]]
+                ):
                     return 0.0
                 else:
                     return self.edge_dictionary[edge[0]][edge[1]]
@@ -501,7 +515,9 @@ class Graph(object):
                 if self._format in ["dictionary", "all"]:
                     self.node_labels = new_labels
                 else:
-                    raise ValueError("graph is in a format that supports " + "labels for dictionary symbols")
+                    raise ValueError(
+                        "graph is in a format that supports " + "labels for dictionary symbols"
+                    )
 
                 # Transform to a valid format
                 if self._format == "all":
@@ -525,7 +541,9 @@ class Graph(object):
                 if self._format in ["dictionary", "all"]:
                     self.edge_labels = new_labels
                 else:
-                    raise ValueError("graph is in a format that " + "supports labels for dictionary symbols")
+                    raise ValueError(
+                        "graph is in a format that " + "supports labels for dictionary symbols"
+                    )
 
                 # Transform to a valid format
                 if self._format == "all":
@@ -754,7 +772,9 @@ class Graph(object):
             self.label_group[(label_type, purpose)] = dict()
         if not bool(self.label_group[(label_type, purpose)]):
             # calculate the label_group
-            self.label_group[(label_type, purpose)] = inv_dict(self.get_labels(label_type, purpose))
+            self.label_group[(label_type, purpose)] = inv_dict(
+                self.get_labels(label_type, purpose)
+            )
         return self.label_group[(label_type, purpose)]
 
     def neighbors(self, vertex, purpose="any", with_weights=False):
@@ -890,7 +910,7 @@ class Graph(object):
             is_adj, adjacency_matrix = is_adjacency(adjacency_matrix, True)
 
             if not is_adj:
-                raise ValueError("unsupported format type " "for adjacency matrix")
+                raise ValueError("unsupported format type for adjacency matrix")
 
             n = adjacency_matrix.shape[0]
 
@@ -960,7 +980,9 @@ class Graph(object):
             # find vertices, refine dictionary
             vertices = set()
             edge_dictionary_refined = dict()
-            is_edge_dict, vertices, edge_dictionary_refined = is_edge_dictionary(edge_dictionary, True)
+            is_edge_dict, vertices, edge_dictionary_refined = is_edge_dictionary(
+                edge_dictionary, True
+            )
             if not is_edge_dict:
                 raise ValueError("unsupported edge_dictionary format")
 
@@ -1084,7 +1106,11 @@ class Graph(object):
         if purpose == "dictionary":
             self.desired_format("dictionary", warn=True)
             if with_weights:
-                return [(i, j) for i in self.edge_dictionary.keys() for j in self.edge_dictionary[i].keys()]
+                return [
+                    (i, j)
+                    for i in self.edge_dictionary.keys()
+                    for j in self.edge_dictionary[i].keys()
+                ]
             else:
                 return [
                     ((i, j), self.edge_dictionary[i][j])
@@ -1110,9 +1136,9 @@ class Graph(object):
         if self._format == "dictionary":
             A = np.zeros(shape=(len(self.vertices), len(self.vertices)))
             v_map = {v: i for (i, v) in enumerate(sorted(list(self.vertices)))}
-            for k, v in iteritems(self.edge_dictionary):
+            for k, v in self.edge_dictionary.items():
                 i = v_map[k]
-                for kv, w in iteritems(v):
+                for kv, w in v.items():
                     A[i, v_map[kv]] = w
             return A
         else:
@@ -1160,7 +1186,9 @@ class Graph(object):
         else:
             return len(self.vertices)
 
-    def produce_neighborhoods(self, r=3, purpose="adjacency", with_distances=False, d=-1, sort_neighbors=True):
+    def produce_neighborhoods(
+        self, r=3, purpose="adjacency", with_distances=False, d=-1, sort_neighbors=True
+    ):
         """Calculate neighborhoods for each node of a Graph, up to a depth.
 
         Parameters
@@ -1315,13 +1343,13 @@ class Graph(object):
         if self._format == "adjacency":
             for v in vertices:
                 if v < 0 or v >= self.n:
-                    raise ValueError("vertices are not valid " "for the original graph format")
+                    raise ValueError("vertices are not valid for the original graph format")
             recipe = [("enum_vertices", "default"), ("add_adjacency",)]
 
         elif self._format == "dictionary":
             for v in vertices:
                 if v not in self.edge_dictionary:
-                    raise ValueError("vertices are not valid " "for the original graph format")
+                    raise ValueError("vertices are not valid for the original graph format")
 
             recipe = [("add_edge_dict",)]
         else:
@@ -1333,10 +1361,15 @@ class Graph(object):
                 if not fa and (v < 0 or v >= self.n):
                     fa = True
                 if fa and fv:
-                    raise ValueError("vertices are not valid for " "the original graph format")
+                    raise ValueError("vertices are not valid for the original graph format")
 
             if not fa and fv:
-                recipe = [("enum_vertices", "default"), ("get_correct", "edsamic"), ("add_adjacency",), ("add_edge_dict",)]
+                recipe = [
+                    ("enum_vertices", "default"),
+                    ("get_correct", "edsamic"),
+                    ("add_adjacency",),
+                    ("add_edge_dict",),
+                ]
             elif not fa:
                 recipe = [
                     ("enum_vertices", "default"),
@@ -1346,7 +1379,12 @@ class Graph(object):
                     ("add_edge_dict",),
                 ]
             elif not fv:
-                recipe = [("enum_vertices", "edsamic"), ("get_correct", "edsamic"), ("add_adjacency",), ("add_edge_dict",)]
+                recipe = [
+                    ("enum_vertices", "edsamic"),
+                    ("get_correct", "edsamic"),
+                    ("add_adjacency",),
+                    ("add_edge_dict",),
+                ]
 
         def get_correct(i):
             return i
@@ -1362,7 +1400,9 @@ class Graph(object):
                     new_indexes, inv_new_indexes = {}, {}
                     for i, l in enumerate(lov_sorted):
                         new_indexes[i], inv_new_indexes[l] = l, i
-                    subgraph.edsamic = {self.edsamic[inv_new_indexes[nik]]: nik for nik in new_indexes.keys()}
+                    subgraph.edsamic = {
+                        self.edsamic[inv_new_indexes[nik]]: nik for nik in new_indexes.keys()
+                    }
                 else:
                     lov_sorted = sorted(list(vertices))
                     new_indexes = {l: i for (i, l) in enumerate(lov_sorted)}
@@ -1372,7 +1412,9 @@ class Graph(object):
                 subgraph.n = len(new_indexes.keys())
                 if bool(self.index_node_labels):
                     subgraph.index_node_labels = {
-                        new_indexes[k]: self.index_node_labels[k] for k in self.index_node_labels.keys() if k in vertices
+                        new_indexes[k]: self.index_node_labels[k]
+                        for k in self.index_node_labels.keys()
+                        if k in vertices
                     }
                 if bool(self.index_edge_labels):
                     subgraph.index_edge_labels = {
@@ -1383,14 +1425,22 @@ class Graph(object):
 
             elif ingredient[0] == "add_edge_dict":
                 subgraph.edge_dictionary = {
-                    get_correct(i): {get_correct(j): self.edge_dictionary[i][j] for j in self.edge_dictionary[i] if j in vertices}
+                    get_correct(i): {
+                        get_correct(j): self.edge_dictionary[i][j]
+                        for j in self.edge_dictionary[i]
+                        if j in vertices
+                    }
                     for i in self.edge_dictionary
                     if i in vertices
                 }
                 subgraph.vertices = vertices
 
                 if bool(self.node_labels):
-                    subgraph.node_labels = {get_correct(k): self.node_labels[k] for k in self.node_labels.keys() if k in vertices}
+                    subgraph.node_labels = {
+                        get_correct(k): self.node_labels[k]
+                        for k in self.node_labels.keys()
+                        if k in vertices
+                    }
                 if bool(self.edge_labels):
                     subgraph.index_edge_labels = {
                         (get_correct(i), get_correct(j)): self.edge_labels[(i, j)]
@@ -1454,12 +1504,21 @@ class Graph(object):
 
         if bool(self.node_labels):
             output += ["#node_labels"]
-            output += ["\n".join(map(lambda x: str(x[0]) + "->" + list_repr(x[1]), self.node_labels.items()))]
+            output += [
+                "\n".join(
+                    map(lambda x: str(x[0]) + "->" + list_repr(x[1]), self.node_labels.items())
+                )
+            ]
 
         if bool(self.edge_labels):
             output += ["#edge_labels"]
             output += [
-                "\n".join(map(lambda x: str(x[0][0]) + "," + str(x[0][1]) + "->" + list_repr(x[1]), self.edge_labels.items()))
+                "\n".join(
+                    map(
+                        lambda x: str(x[0][0]) + "," + str(x[0][1]) + "->" + list_repr(x[1]),
+                        self.edge_labels.items(),
+                    )
+                )
             ]
 
         return "\n".join(output)
@@ -1497,7 +1556,9 @@ def is_adjacency(g, transform=False):
             return True, g.todense()
         else:
             return True
-    elif type(g) is list and all(isinstance(l, list) and all(isinstance(i, numbers.Number) for i in l) for l in g):
+    elif type(g) is list and all(
+        isinstance(l, list) and all(isinstance(i, numbers.Number) for i in l) for l in g
+    ):
         if transform:
             return True, np.array(g)
         else:
@@ -1535,12 +1596,15 @@ def is_edge_dictionary(g, transform=False):
 
     """
     if type(g) is dict:
-        if all(type(k) is tuple and len(k) == 2 and isinstance(n, numbers.Number) for (k, n) in iteritems(g)):
+        if all(
+            type(k) is tuple and len(k) == 2 and isinstance(n, numbers.Number)
+            for (k, n) in g.items()
+        ):
             if transform:
                 vertices_key = set()
                 vertices_val = set()
                 edge_dict = dict()
-                for k, v in iteritems(g):
+                for k, v in g.items():
                     vertices_key.add(k[0])
                     vertices_val.add(k[1])
                     nested_dict_add(edge_dict, v, k[0], k[1])
@@ -1553,12 +1617,12 @@ def is_edge_dictionary(g, transform=False):
                 return True, vertices_key | vertices_val, edge_dict
             else:
                 return True
-        if all(isinstance(d, list) for d in itervalues(g)):
+        if all(isinstance(d, list) for d in g.values()):
             if transform:
                 vertices_key = set()
                 vertices_val = set()
                 edge_dict = dict()
-                for k, v in iteritems(g):
+                for k, v in g.items():
                     vertices_key.add(k)
                     vertices_val |= set(v)
                     for kp in v:
@@ -1572,7 +1636,10 @@ def is_edge_dictionary(g, transform=False):
                 return True, vertices_key | vertices_val, edge_dict
             else:
                 return True
-        if all(isinstance(d, dict) and all(isinstance(n, numbers.Number) for n in itervalues(d)) for d in itervalues(g)):
+        if all(
+            isinstance(d, dict) and all(isinstance(n, numbers.Number) for n in d.values())
+            for d in g.values()
+        ):
             if transform:
                 vertices_key = set(g.keys())
                 vertices_val = {kp for k in g.keys() for kp in g[k].keys()}
@@ -1674,7 +1741,7 @@ def dijkstra(edge_dictionary, start_vertex, end_vertex=None):
             vwLength = dict_fd[v] + edge_dictionary[v][w]
             if w in dict_fd:
                 if vwLength < dict_fd[w]:
-                    raise ValueError("Dijkstra: found better path to " "already-final vertex")
+                    raise ValueError("Dijkstra: found better path to already-final vertex")
             elif w not in queue or vwLength < queue[w]:
                 queue[w] = vwLength
                 dict_pred[w] = v
