@@ -31,7 +31,7 @@ on:
 env:
 
   import-package-name: grakel
-  test-dir: grakel/tests
+  test-dir: tests
   codecov-args: >-
     --cov=grakel
     --cov-report=xml

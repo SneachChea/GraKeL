@@ -39,7 +39,6 @@ test:
     - grakel.kernels
     - grakel.kernels._c_functions
     - grakel.kernels._isomorphism
-    - grakel.tests
 
 about:
   home: https://github.com/ysig/GraKeL
