@@ -22,7 +22,7 @@ What's New
 
      From this release onwards **GraKeL is Python 3 only**. The last release
      that carried any Python 2 support was 0.1.10; if you are still on Python
-     2, pin ``grakel<=0.1.10``. Supported versions are 3.9 to 3.12.
+     2, pin ``grakel<=0.1.10``. Supported versions are 3.10 to 3.14.
 
   + The Python 2 compatibility layer is gone: :code:`six` and :code:`future`
     are no longer dependencies, the :code:`__future__` imports and the
@@ -36,7 +36,7 @@ What's New
     and shortest-path kernels on an empty queue.
   + :code:`setup.py` no longer imports :code:`distutils`, which was dropped
     from the standard library in 3.12.
-  + Python support is now **3.9 to 3.12**; wheels are built for all of them on
+  + Python support is now **3.10 to 3.14**; wheels are built for all of them on
     Linux, macOS and Windows. Python 2 is gone from CI, the docs and the conda
     recipe.
   + Dependency minimums raised to the first versions supporting 3.9: numpy
