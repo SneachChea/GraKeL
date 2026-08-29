@@ -27,8 +27,8 @@ What's New
     <https://github.com/ysig/GraKeL/issues/71>`_), where
     :code:`RandomWalkLabeled` had returned an all ones matrix (`#96
     <https://github.com/ysig/GraKeL/issues/96>`_), so 0.1.10 no longer behaves
-    like 0.1.8; in this release the geometric :code:`RandomWalk` kernel keeps
-    its series convergent: the decay factor is checked against the spectral
+    like 0.1.8; in 0.1.11 the geometric :code:`RandomWalk` kernel keeps its
+    series convergent: the decay factor is checked against the spectral
     radius of the graphs it is given and lowered, with a warning, when it
     would diverge. Previously this produced negative self similarities and
     NaNs once normalized.
