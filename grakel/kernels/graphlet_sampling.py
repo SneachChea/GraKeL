@@ -7,6 +7,7 @@ import warnings
 import numpy as np
 
 from scipy.interpolate import interp1d
+from scipy.sparse import csr_matrix
 from sklearn.exceptions import NotFittedError
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_is_fitted
@@ -17,6 +18,25 @@ from grakel.kernels._c_functions import ConSubg
 from grakel.kernels._isomorphism import Graph as bGraph
 
 from collections.abc import Iterable
+
+
+def _counts_to_csr(counts, shape):
+    """Build a sparse feature matrix from graphlet counts."""
+    if not counts:
+        return csr_matrix(shape, dtype=float)
+    indexes, values = zip(*counts.items())
+    rows, cols = zip(*indexes)
+    return csr_matrix((values, (rows, cols)), shape=shape, dtype=float)
+
+
+def _sparse_dot(left, right):
+    """Multiply sparse feature matrices without retaining a full sparse result."""
+    result = np.empty((left.shape[0], right.shape[0]), dtype=float)
+    right_transposed = right.T
+    for start in range(0, left.shape[0], 256):
+        stop = min(start + 256, left.shape[0])
+        result[start:stop] = left[start:stop].dot(right_transposed).toarray()
+    return result
 
 
 class GraphletSampling(Kernel):
@@ -100,9 +120,8 @@ class GraphletSampling(Kernel):
         Holds the diagonal of X kernel matrix in a numpy array, if calculated
         (`fit_transform`).
 
-    _phi_X : np.array, shape=(_nx, len(_graph_bins))
-        Holds the features of X in a numpy array, if calculated.
-        (`fit_transform`).
+    _phi_X : scipy.sparse.csr_matrix, shape=(_nx, len(_graph_bins))
+        Holds the sparse features of X, if calculated (`fit_transform`).
 
     """
 
@@ -127,6 +146,11 @@ class GraphletSampling(Kernel):
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         self._graph_bins = dict()
+        self._graph_bin_keys = dict()
+        self._Y_graph_bins = dict()
+        self._Y_graph_bin_keys = dict()
+        for attribute in ("_phi_X", "_phi_Y", "_X_diag", "_Y_diag"):
+            self.__dict__.pop(attribute, None)
         if not self._initialized["n_jobs"]:
             if self.n_jobs is not None:
                 warnings.warn('no implemented parallelization for GraphletSampling')
@@ -257,22 +281,29 @@ class GraphletSampling(Kernel):
             Y = self.parse_input(X)
 
         # Transform - calculate kernel matrix
+        n_bins = len(self._graph_bins)
         try:
             check_is_fitted(self, ['_phi_X'])
             phi_x = self._phi_X
         except NotFittedError:
-            phi_x = np.zeros(shape=(self._nx, len(self._graph_bins)))
-            for ((i, j), v) in self.X.items():
-                phi_x[i, j] = v
+            phi_x = _counts_to_csr(self.X, (self._nx, n_bins))
             self._phi_X = phi_x
-        phi_y = np.zeros(shape=(self._ny, len(self._graph_bins) +
-                                len(self._Y_graph_bins)))
+
+        y_rows, y_cols, y_values = [], [], []
+        y_diag = np.zeros(self._ny)
         for ((i, j), v) in Y.items():
-            phi_y[i, j] = v
+            y_diag[i] += v * v
+            if j < n_bins:
+                y_rows.append(i)
+                y_cols.append(j)
+                y_values.append(v)
+        phi_y = csr_matrix((y_values, (y_rows, y_cols)),
+                           shape=(self._ny, n_bins), dtype=float)
 
         # store _phi_Y for independent (of normalization arg diagonal-calls)
         self._phi_Y = phi_y
-        km = np.dot(phi_y[:, :len(self._graph_bins)], phi_x.T)
+        self._Y_diag = y_diag
+        km = _sparse_dot(phi_y, phi_x)
         self._is_transformed = True
         if self.normalize:
             X_diag, Y_diag = self.diagonal()
@@ -307,15 +338,13 @@ class GraphletSampling(Kernel):
         self.fit(X)
 
         # calculate feature matrices.
-        phi_x = np.zeros(shape=(self._nx, len(self._graph_bins)))
-        for ((i, j), v) in self.X.items():
-            phi_x[i, j] = v
+        phi_x = _counts_to_csr(self.X, (self._nx, len(self._graph_bins)))
 
         # Transform - calculate kernel matrix
         self._phi_X = phi_x
-        km = phi_x.dot(phi_x.T)
+        km = _sparse_dot(phi_x, phi_x)
 
-        self._X_diag = np.diagonal(km)
+        self._X_diag = np.asarray(phi_x.multiply(phi_x).sum(axis=1)).ravel()
         if self.normalize:
             return np.divide(km, np.sqrt(np.outer(self._X_diag, self._X_diag)))
         else:
@@ -348,13 +377,13 @@ class GraphletSampling(Kernel):
             check_is_fitted(self, ['_X_diag'])
         except NotFittedError:
             # Calculate diagonal of X
-            self._X_diag = np.sum(np.square(self._phi_X), axis=1)
+            self._X_diag = np.asarray(
+                self._phi_X.multiply(self._phi_X).sum(axis=1)
+            ).ravel()
 
         try:
-            # If transform has happened return Y
-            check_is_fitted(self, ['_phi_Y'])
-            Y_diag = np.sum(np.square(self._phi_Y), axis=1)
-            return self._X_diag, Y_diag
+            check_is_fitted(self, ['_Y_diag'])
+            return self._X_diag, self._Y_diag
         except NotFittedError:
             # Calculate diagonal of X
             return self._X_diag
@@ -385,8 +414,10 @@ class GraphletSampling(Kernel):
             i = -1
             if self._method_calling == 1:
                 self._graph_bins = dict()
+                self._graph_bin_keys = dict()
             elif self._method_calling == 3:
                 self._Y_graph_bins = dict()
+                self._Y_graph_bin_keys = dict()
             local_values = dict()
             for (idx, x) in enumerate(iter(X)):
                 is_iter = False
@@ -407,7 +438,7 @@ class GraphletSampling(Kernel):
                     raise TypeError('each element of X must be either a ' +
                                     'graph or an iterable with at least 1 ' +
                                     'and at most 3 elements\n')
-                A = (A > 0).astype(int)
+                A = A > 0
                 i += 1
                 # sample graphlets based on the initialized method
                 samples = self.sample_graphlets_(A, self.k_, self.n_samples_, self.random_state_)
@@ -415,52 +446,38 @@ class GraphletSampling(Kernel):
                 if self._method_calling == 1:
                     for (j, sg) in enumerate(samples):
                         # add the graph to an isomorphism class
-                        if len(self._graph_bins) == 0:
-                            self._graph_bins[0] = sg
-                            local_values[(i, 0)] = 1
+                        key = sg.canonical_form_key()
+                        bin_index = self._graph_bin_keys.get(key, None)
+                        if bin_index is None:
+                            bin_index = len(self._graph_bins)
+                            self._graph_bins[bin_index] = sg
+                            self._graph_bin_keys[key] = bin_index
+                            local_values[(i, bin_index)] = 1
                         else:
-                            newbin = True
-                            for k in range(len(self._graph_bins)):
-                                if self._graph_bins[k].isomorphic(sg):
-                                    newbin = False
-                                    if (i, k) not in local_values:
-                                        local_values[(i, k)] = 1
-                                    local_values[(i, k)] += 1
-                                    break
-                            if newbin:
-                                local_values[(i, len(self._graph_bins))] = 1
-                                self._graph_bins[len(self._graph_bins)] = sg
+                            if (i, bin_index) not in local_values:
+                                local_values[(i, bin_index)] = 1
+                            local_values[(i, bin_index)] += 1
                 elif self._method_calling == 3:
                     for (j, sg) in enumerate(samples):
                         # add the graph to an isomorphism class
-                        newbin = True
-                        for k in range(len(self._graph_bins)):
-                            if self._graph_bins[k].isomorphic(sg):
-                                newbin = False
-                                if (i, k) not in local_values:
-                                    local_values[(i, k)] = 1
-                                local_values[(i, k)] += 1
-                                break
-                        if newbin:
-                            if len(self._Y_graph_bins) == 0:
-                                self._Y_graph_bins[0] = sg
-                                local_values[(i, len(self._graph_bins))] = 1
-                            else:
-                                newbin_Y = True
-                                start = len(self._graph_bins)
-                                start_Y = len(self._Y_graph_bins)
-                                for l in range(start_Y):
-                                    if self._Y_graph_bins[l].isomorphic(sg):
-                                        newbin_Y = False
-                                        bin_key = (i, l + start)
-                                        if bin_key not in local_values:
-                                            local_values[bin_key] = 1
-                                        local_values[bin_key] += 1
-                                        break
-                                if newbin_Y:
-                                    idx = start + start_Y
-                                    local_values[(i, idx)] = 1
-                                    self._Y_graph_bins[start_Y] = sg
+                        key = sg.canonical_form_key()
+                        bin_index = self._graph_bin_keys.get(key, None)
+                        if bin_index is not None:
+                            if (i, bin_index) not in local_values:
+                                local_values[(i, bin_index)] = 1
+                            local_values[(i, bin_index)] += 1
+                            continue
+
+                        bin_index = self._Y_graph_bin_keys.get(key, None)
+                        if bin_index is None:
+                            bin_index = len(self._Y_graph_bins)
+                            self._Y_graph_bins[bin_index] = sg
+                            self._Y_graph_bin_keys[key] = bin_index
+                        bin_index += len(self._graph_bins)
+                        if (i, bin_index) not in local_values:
+                            local_values[(i, bin_index)] = 1
+                        else:
+                            local_values[(i, bin_index)] += 1
 
             if i == -1:
                 raise ValueError('parsed input is empty')
@@ -497,7 +514,6 @@ def sample_graphlets_probabilistic(A, k, n_samples, rs):
         from sizes between 3..k.
 
     """
-    s = list(range(A.shape[0]))
     min_r, max_r = min(3, A.shape[0]), min(k, A.shape[0])
     if min_r == max_r:
         def rsamp(*args):
@@ -507,8 +523,8 @@ def sample_graphlets_probabilistic(A, k, n_samples, rs):
             return rs.randint(min_r, max_r+1)
 
     for i in range(n_samples):
-        index_rand = rs.choice(s, rsamp(), replace=False)
-        Q = A[index_rand, :][:, index_rand]
+        index_rand = rs.choice(A.shape[0], rsamp(), replace=False)
+        Q = A[np.ix_(index_rand, index_rand)]
         yield bGraph(Q.shape[0], zip(*np.where(Q == 1)))
 
 
