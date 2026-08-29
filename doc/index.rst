@@ -16,6 +16,23 @@ Overview
 What's New
 ==========
 
+- Version **0.1.12**
+
+  + A fixed-corpus numerical regression suite under :code:`tests/regression/`
+    freezes the kernel matrices of six kernels, captured from GraKeL 0.1.10.
+    :code:`RandomWalk` and :code:`RandomWalkLabeled` are deliberately absent:
+    their behaviour differs between versions, so no single reference matrix
+    represents them. In 0.1.10 the initialisation of :code:`self.mu_` in the
+    random walk kernel was fixed (`#71
+    <https://github.com/ysig/GraKeL/issues/71>`_), where
+    :code:`RandomWalkLabeled` had returned an all ones matrix (`#96
+    <https://github.com/ysig/GraKeL/issues/96>`_), so 0.1.10 no longer behaves
+    like 0.1.8; in this release the geometric :code:`RandomWalk` kernel keeps
+    its series convergent: the decay factor is checked against the spectral
+    radius of the graphs it is given and lowered, with a warning, when it
+    would diverge. Previously this produced negative self similarities and
+    NaNs once normalized.
+
 - Version **0.1.11**
 
   .. note::
