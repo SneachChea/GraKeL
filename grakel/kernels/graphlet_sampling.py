@@ -20,6 +20,9 @@ from grakel.kernels._isomorphism import Graph as bGraph
 from collections.abc import Iterable
 
 
+_legacy_bliss_warning_issued = False
+
+
 def _counts_to_csr(counts, shape):
     """Build a sparse feature matrix from graphlet counts."""
     if not counts:
@@ -27,6 +30,34 @@ def _counts_to_csr(counts, shape):
     indexes, values = zip(*counts.items())
     rows, cols = zip(*indexes)
     return csr_matrix((values, (rows, cols)), shape=shape, dtype=float)
+
+
+def _canonical_form_key(graph):
+    """Return a canonical key, including a fallback for older Bliss builds."""
+    key_method = getattr(graph, "canonical_form_key", None)
+    if key_method is not None:
+        return key_method()
+
+    global _legacy_bliss_warning_issued
+    if not _legacy_bliss_warning_issued:
+        warnings.warn(
+            "The Bliss extension lacks canonical_form_key; using a slower "
+            "fallback. Rebuild GraKeL with `python -m pip install -e .` "
+            "for full performance.",
+            UserWarning,
+            stacklevel=2,
+        )
+        _legacy_bliss_warning_issued = True
+
+    canonical_labeling = graph.canonical_labeling()
+    colors = [0] * len(graph._vertices)
+    edges = []
+    for name, vertex in graph._vertices.items():
+        image = canonical_labeling[name]
+        colors[image] = vertex.color
+        for neighbour in vertex.edges:
+            edges.append((image, canonical_labeling[neighbour.name]))
+    return (tuple(colors), tuple(sorted(edges)))
 
 
 def _sparse_dot(left, right):
@@ -446,7 +477,7 @@ class GraphletSampling(Kernel):
                 if self._method_calling == 1:
                     for (j, sg) in enumerate(samples):
                         # add the graph to an isomorphism class
-                        key = sg.canonical_form_key()
+                        key = _canonical_form_key(sg)
                         bin_index = self._graph_bin_keys.get(key, None)
                         if bin_index is None:
                             bin_index = len(self._graph_bins)
@@ -460,7 +491,7 @@ class GraphletSampling(Kernel):
                 elif self._method_calling == 3:
                     for (j, sg) in enumerate(samples):
                         # add the graph to an isomorphism class
-                        key = sg.canonical_form_key()
+                        key = _canonical_form_key(sg)
                         bin_index = self._graph_bin_keys.get(key, None)
                         if bin_index is not None:
                             if (i, bin_index) not in local_values:

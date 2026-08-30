@@ -1,9 +1,12 @@
 """Focused tests for GraphletSampling optimizations."""
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 from scipy.sparse import isspmatrix_csr
 
 from grakel.kernels import GraphletSampling
+import grakel.kernels.graphlet_sampling as graphlet_sampling_module
+from grakel.kernels.graphlet_sampling import _canonical_form_key
 from grakel.kernels._isomorphism import Graph as BlissGraph
 
 
@@ -21,9 +24,28 @@ def test_canonical_form_key_matches_isomorphism():
     non_isomorphic = BlissGraph(4, [(0, 1), (1, 2), (2, 0)])
 
     assert graph.isomorphic(permuted)
-    assert graph.canonical_form_key() == permuted.canonical_form_key()
+    assert _canonical_form_key(graph) == _canonical_form_key(permuted)
     assert not graph.isomorphic(non_isomorphic)
-    assert graph.canonical_form_key() != non_isomorphic.canonical_form_key()
+    assert _canonical_form_key(graph) != _canonical_form_key(non_isomorphic)
+
+
+def test_canonical_form_key_falls_back_for_older_bliss_builds(monkeypatch):
+    graph = BlissGraph(3, [(0, 1), (1, 2), (2, 0)])
+
+    class LegacyGraph:
+        def __init__(self, wrapped):
+            self._wrapped = wrapped
+            self._vertices = wrapped._vertices
+
+        def canonical_labeling(self):
+            return self._wrapped.canonical_labeling()
+
+    monkeypatch.setattr(
+        graphlet_sampling_module, "_legacy_bliss_warning_issued", False
+    )
+    with pytest.warns(UserWarning, match="lacks canonical_form_key"):
+        legacy_key = _canonical_form_key(LegacyGraph(graph))
+    assert legacy_key == _canonical_form_key(graph)
 
 
 def test_seeded_sampling_is_reproducible_and_sparse():
