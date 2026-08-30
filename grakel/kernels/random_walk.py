@@ -75,62 +75,53 @@ class RandomWalk(Kernel):
         self.kernel_type = kernel_type
         self.p = p
         self.lamda = lamda
-        self._initialized.update({"method_type": False, "kernel_type": False,
-                                  "p": False, "lamda": False})
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         super(RandomWalk, self).initialize()
 
-        if not self._initialized["method_type"]:
-            # Setup method type and define operation.
-            if (self.method_type == "baseline" or
-                    (self.method_type == "fast"
-                     and self.p is None
-                     and self.kernel_type == "geometric")):
-                self.add_input_ = idem
-            elif self.method_type == "fast":
-                # Spectral Decomposition if adjacency matrix is symmetric
-                self.add_input_ = sd
-            else:
-                raise ValueError('unsupported method_type')
-            self._initialized["method_type"] = True
+        # Setup method type and define operation.
+        if (self.method_type == "baseline" or
+                (self.method_type == "fast"
+                 and self.p is None
+                 and self.kernel_type == "geometric")):
+            self.add_input_ = idem
+        elif self.method_type == "fast":
+            # Spectral Decomposition if adjacency matrix is symmetric
+            self.add_input_ = sd
+        else:
+            raise ValueError('unsupported method_type')
 
-        if not self._initialized["kernel_type"]:
-            if self.kernel_type not in ["geometric", "exponential"]:
-                raise ValueError('unsupported kernel type: either "geometric" '
-                                 'or "exponential"')
+        if self.kernel_type not in ["geometric", "exponential"]:
+            raise ValueError('unsupported kernel type: either "geometric" '
+                             'or "exponential"')
 
-        if not self._initialized["p"]:
-            if self.p is not None:
-                if type(self.p) is int and self.p > 0:
-                    if self.kernel_type == "exponential":
-                        self.mu_ = [1]
-                        fact = 1
-                        power = 1
-                        for k in range(1, self.p + 1):
-                            fact *= k
-                            power *= self.lamda
-                            self.mu_.append(power/fact)
-                    else:
-                        self.mu_ = [1]
-                        power = 1
-                        for k in range(1, self.p + 1):
-                            power *= self.lamda
-                            self.mu_.append(power)
+        if self.p is not None:
+            if type(self.p) is int and self.p > 0:
+                if self.kernel_type == "exponential":
+                    self.mu_ = [1]
+                    fact = 1
+                    power = 1
+                    for k in range(1, self.p + 1):
+                        fact *= k
+                        power *= self.lamda
+                        self.mu_.append(power/fact)
                 else:
-                    raise TypeError('p must be a positive integer bigger than '
-                                    'zero or nonetype')
-                self._initialized["kernel_type"] = True
+                    self.mu_ = [1]
+                    power = 1
+                    for k in range(1, self.p + 1):
+                        power *= self.lamda
+                        self.mu_.append(power)
+            else:
+                raise TypeError('p must be a positive integer bigger than '
+                                'zero or nonetype')
 
-        if not self._initialized["lamda"]:
-            if self.lamda <= 0:
-                raise TypeError('lambda must be positive bigger than equal')
-            # The user's lamda is never modified in place -- the value actually
-            # used is _lamda, which parse_input lowers if the walk series would
-            # otherwise diverge on the graphs it is given.
-            self._lamda = self.lamda
-            self._initialized["lamda"] = True
+        if self.lamda <= 0:
+            raise TypeError('lambda must be positive bigger than equal')
+        # The user's lamda is never modified in place -- the value actually
+        # used is _lamda, which parse_input lowers if the walk series would
+        # otherwise diverge on the graphs it is given.
+        self._lamda = self.lamda
 
     # how far below the divergence bound to sit when lamda has to be lowered:
     # right at the bound inv(I - lamda W) is near singular
@@ -430,12 +421,7 @@ class RandomWalkLabeled(RandomWalk):
                 if is_iter:
                     x = list(x)
                 if is_iter and len(x) in [1, 2, 3]:
-                    if len(x) == 0:
-                        warnings.warn('Ignoring empty element' +
-                                      ' on index: '+str(idx))
-                        continue
-                    else:
-                        x = Graph(x[0], x[1], {}, self._graph_format)
+                    x = Graph(x[0], x[1], {}, self._graph_format)
                 elif type(x) is not Graph:
                     raise TypeError('each element of X must be either a ' +
                                     'graph or an iterable with at least 2 ' +

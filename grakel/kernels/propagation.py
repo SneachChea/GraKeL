@@ -86,49 +86,36 @@ class Propagation(Kernel):
         self.t_max = t_max
         self.w = w
         self.metric = metric
-        self._initialized.update(
-            {"M": False, "t_max": False, "w": False, "random_state": False, "metric": False}
-        )
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         super(Propagation, self).initialize()
 
-        if not self._initialized["random_state"]:
-            self.random_state_ = check_random_state(self.random_state)
-            self._initialized["random_state"] = True
+        self.random_state_ = check_random_state(self.random_state)
 
-        if not self._initialized["metric"]:
-            if (
-                type(self.M) is not str
-                or (self.M not in ["H", "TV"] and not self.attr_)
-                or (self.M not in ["L1", "L2"] and self.attr_)
-            ):
-                if self.attr_:
-                    raise TypeError('Metric type must be a str, one of "L1", "L2"')
-                else:
-                    raise TypeError('Metric type must be a str, one of "H", "TV"')
+        if (
+            type(self.M) is not str
+            or (self.M not in ["H", "TV"] and not self.attr_)
+            or (self.M not in ["L1", "L2"] and self.attr_)
+        ):
+            if self.attr_:
+                raise TypeError('Metric type must be a str, one of "L1", "L2"')
+            else:
+                raise TypeError('Metric type must be a str, one of "H", "TV"')
 
-            if not self.attr_:
-                self.take_sqrt_ = self.M == "H"
+        if not self.attr_:
+            self.take_sqrt_ = self.M == "H"
 
-            self.take_cauchy_ = self.M in ["TV", "L1"]
-            self._initialized["metric"] = True
+        self.take_cauchy_ = self.M in ["TV", "L1"]
 
-        if not self._initialized["t_max"]:
-            if type(self.t_max) is not int or self.t_max <= 0:
-                raise TypeError("The number of iterations must be a " + "positive integer.")
-            self._initialized["t_max"] = True
+        if type(self.t_max) is not int or self.t_max <= 0:
+            raise TypeError("The number of iterations must be a " + "positive integer.")
 
-        if not self._initialized["w"]:
-            if not isinstance(self.w, Real) and self.w <= 0:
-                raise TypeError("The bin width must be a positive number.")
-            self._initialized["w"] = True
+        if not isinstance(self.w, Real) and self.w <= 0:
+            raise TypeError("The bin width must be a positive number.")
 
-        if not self._initialized["metric"]:
-            if not callable(self.metric):
-                raise TypeError("The base kernel must be callable.")
-            self._initialized["metric"] = True
+        if not callable(self.metric):
+            raise TypeError("The base kernel must be callable.")
 
     def pairwise_operation(self, x, y):
         """Calculate the kernel value between two elements.
@@ -273,43 +260,28 @@ class Propagation(Kernel):
                     # random offset
                     self._b.append(self.w * self.random_state_.rand())
 
+            if (self._method_calling == 1
+                    or (self._method_calling == 3 and dim_orig >= len(enum_labels))):
                 phi = {k: dict() for k in range(n)}
                 for t in range(self.t_max):
                     # for hash all graphs inside P and produce the feature vectors
                     hashes = self.calculate_LSH(P, self._u[t], self._b[t])
-                    hd = dict((j, i) for i, j in enumerate(set(np.unique(hashes))))
-                    self._hd.append(hd)
-                    features = np.vectorize(lambda i: hd[i])(hashes)
-
-                    # Accumulate the results.
-                    for k in range(n):
-                        phi[k][t] = Counter(features[indexes[k] : indexes[k + 1]])
-
-                    # calculate the Propagation matrix if needed
-                    if t < self.t_max - 1:
-                        for k in range(n):
-                            start, end = indexes[k : k + 2]
-                            P[start:end, :] = np.dot(transition_matrix[k], P[start:end, :])
-
-                return [phi[k] for k in range(n)]
-
-            elif self._method_calling == 3 and dim_orig >= len(enum_labels):
-                phi = {k: dict() for k in range(n)}
-                for t in range(self.t_max):
-                    # for hash all graphs inside P and produce the feature vectors
-                    hashes = self.calculate_LSH(P, self._u[t], self._b[t])
-                    hd = dict(
-                        chain(
-                            self._hd[t].items(),
-                            iter(
-                                (j, i)
-                                for i, j in enumerate(
-                                    filterfalse(lambda x: x in self._hd[t], np.unique(hashes)),
-                                    len(self._hd[t]),
-                                )
-                            ),
+                    if self._method_calling == 1:
+                        hd = dict((j, i) for i, j in enumerate(set(np.unique(hashes))))
+                        self._hd.append(hd)
+                    else:
+                        hd = dict(
+                            chain(
+                                self._hd[t].items(),
+                                iter(
+                                    (j, i)
+                                    for i, j in enumerate(
+                                        filterfalse(lambda x: x in self._hd[t], np.unique(hashes)),
+                                        len(self._hd[t]),
+                                    )
+                                ),
+                            )
                         )
-                    )
 
                     features = np.vectorize(lambda i: hd[i])(hashes)
 
@@ -317,11 +289,7 @@ class Propagation(Kernel):
                     for k in range(n):
                         phi[k][t] = Counter(features[indexes[k] : indexes[k + 1]])
 
-                    # calculate the Propagation matrix if needed
-                    if t < self.t_max - 1:
-                        for k in range(n):
-                            start, end = indexes[k : k + 2]
-                            P[start:end, :] = np.dot(transition_matrix[k], P[start:end, :])
+                    self._propagate(P, transition_matrix, indexes, n, t)
 
                 return [phi[k] for k in range(n)]
 
@@ -382,17 +350,21 @@ class Propagation(Kernel):
                         )
                         phi[k][t] = A + B
 
-                    # calculate the Propagation matrix if needed
-                    if t < self.t_max - 1:
-                        for k in range(n):
-                            start, end = indexes[k : k + 2]
-                            P[start:end, :] = np.dot(transition_matrix[k], P[start:end, :])
+                    self._propagate(P, transition_matrix, indexes, n, t)
 
+                    if t < self.t_max - 1:
                         Q = np.all(P[:, dim_orig:] > 0, axis=1)
                         vertices = np.where(~Q)[0]
                         vertices_p = np.where(Q)[0]
 
                 return [phi[k] for k in range(n)]
+
+    def _propagate(self, P, transition_matrix, indexes, n, t):
+        """Apply one propagation step, unless on the last iteration."""
+        if t < self.t_max - 1:
+            for k in range(n):
+                start, end = indexes[k : k + 2]
+                P[start:end, :] = np.dot(transition_matrix[k], P[start:end, :])
 
     def calculate_LSH(self, X, u, b):
         """Calculate Local Sensitive Hashing needed for propagation kernels.
@@ -488,10 +460,6 @@ class PropagationAttr(Propagation):
             t_max=t_max,
             w=w,
         )
-
-    def initialize(self):
-        """Initialize all transformer arguments, needing initialization."""
-        super(PropagationAttr, self).initialize()
 
     def parse_input(self, X):
         """Parse and create features for the attributed propation kernel.
@@ -621,11 +589,7 @@ class PropagationAttr(Propagation):
                     for k in range(n):
                         phi[k][t] = Counter(features[indexes[k] : indexes[k + 1]].flat)
 
-                    # calculate the Propagation matrix if needed
-                    if t < self.t_max - 1:
-                        for k in range(n):
-                            start, end = indexes[k : k + 2]
-                            P[start:end, :] = np.dot(transition_matrix[k], P[start:end, :])
+                    self._propagate(P, transition_matrix, indexes, n, t)
 
                 return [phi[k] for k in range(n)]
 
@@ -656,11 +620,7 @@ class PropagationAttr(Propagation):
                     for k in range(n):
                         phi[k][t] = Counter(features[indexes[k] : indexes[k + 1]])
 
-                    # calculate the Propagation matrix if needed
-                    if t < self.t_max - 1:
-                        for k in range(n):
-                            start, end = indexes[k : k + 2]
-                            P[start:end, :] = np.dot(transition_matrix[k], P[start:end, :])
+                    self._propagate(P, transition_matrix, indexes, n, t)
 
                 return [phi[k] for k in range(n)]
 

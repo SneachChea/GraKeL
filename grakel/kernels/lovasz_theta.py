@@ -33,7 +33,6 @@ except ImportError:
     cvxopt_installed = False
 
 min_weight = float("1e-10")
-angle_precision = float("1e-6")
 tolerance = float("1e-1")
 
 
@@ -107,50 +106,37 @@ class LovaszTheta(Kernel):
         self.base_kernel = base_kernel
         self.random_state = random_state
         self.max_dim = max_dim
-        self._initialized.update({"n_samples": False, "subsets_size_range": False,
-                                  "base_kernel": False, "random_state": False,
-                                  "max_dim": False})
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         super(LovaszTheta, self).initialize()
 
-        if not self._initialized["n_samples"]:
-            if self.n_samples <= 0 or type(self.n_samples) is not int:
-                raise TypeError('n_samples must an integer be bigger than '
-                                'zero')
-            self._initialized["n_samples"] = True
+        if self.n_samples <= 0 or type(self.n_samples) is not int:
+            raise TypeError('n_samples must an integer be bigger than '
+                            'zero')
 
-        if not self._initialized["subsets_size_range"]:
-            if (type(self.subsets_size_range) is not tuple
-                    or len(self.subsets_size_range) != 2
-                    or any(type(i) is not int for i in self.subsets_size_range)
-                    or self.subsets_size_range[0] > self.subsets_size_range[1]
-                    or self.subsets_size_range[0] <= 0):
-                raise TypeError('subsets_size_range subset size range'
-                                'must be a tuple of two integers in '
-                                'increasing order, bigger than 1')
-            self._initialized["subsets_size_range"] = True
+        if (type(self.subsets_size_range) is not tuple
+                or len(self.subsets_size_range) != 2
+                or any(type(i) is not int for i in self.subsets_size_range)
+                or self.subsets_size_range[0] > self.subsets_size_range[1]
+                or self.subsets_size_range[0] <= 0):
+            raise TypeError('subsets_size_range subset size range'
+                            'must be a tuple of two integers in '
+                            'increasing order, bigger than 1')
 
-        if not self._initialized["base_kernel"]:
-            if not callable(self.base_kernel) and self.base_kernel is not None:
-                raise TypeError('base_kernel between arguments ' +
-                                'must be a function')
-            self._initialized["base_kernel"] = True
-            self.base_kernel_ = inner_product
+        if not callable(self.base_kernel) and self.base_kernel is not None:
+            raise TypeError('base_kernel between arguments ' +
+                            'must be a function')
+        self.base_kernel_ = inner_product
 
-        if not self._initialized["random_state"]:
-            self.random_state_ = check_random_state(self.random_state)
-            self._initialized["random_state"] = True
+        self.random_state_ = check_random_state(self.random_state)
 
-        if not self._initialized["max_dim"]:
-            if self.max_dim is not None and (type(self.max_dim) is not int or self.max_dim < 1):
-                raise ValueError('max_dim if not None, should be an integer bigger than 1')
-            if self.max_dim is None:
-                self.d_ = None
-            else:
-                self.d_ = self.max_dim + 1
-            self._initialized["max_dim"] = True
+        if self.max_dim is not None and (type(self.max_dim) is not int or self.max_dim < 1):
+            raise ValueError('max_dim if not None, should be an integer bigger than 1')
+        if self.max_dim is None:
+            self.d_ = None
+        else:
+            self.d_ = self.max_dim + 1
 
     def parse_input(self, X):
         """Parse and create features for lovasz_theta kernel.
@@ -406,12 +392,6 @@ def _minimum_cone_(U, rs):
         c /= norm(c, 2)
 
     t = min(np.dot(U.T, c))
-    if t > 1. and t < angle_precision:
-        t = 1.
-
-    elif t < -1. and t > -angle_precision:
-        t = -1.
-
     return t
 
 

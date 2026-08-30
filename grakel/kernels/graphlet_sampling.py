@@ -71,8 +71,6 @@ class GraphletSampling(Kernel):
                 initializing the default value either "delta" or "epsilon" must
                 be set.
 
-
-
     Attributes
     ----------
     X : dict
@@ -122,110 +120,100 @@ class GraphletSampling(Kernel):
         self.random_state = random_state
         self.k = k
         self.sampling = sampling
-        self._initialized.update({"random_state": False, "k": False, "sampling": False})
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         self._graph_bins = dict()
-        if not self._initialized["n_jobs"]:
-            if self.n_jobs is not None:
-                warnings.warn('no implemented parallelization for GraphletSampling')
-            self._initialized["n_jobs"] = True
+        if self.n_jobs is not None:
+            warnings.warn('no implemented parallelization for GraphletSampling')
 
-        if not self._initialized["random_state"]:
-            self.random_state_ = check_random_state(self.random_state)
-            self._initialized["random_state"] = True
+        self.random_state_ = check_random_state(self.random_state)
 
-        if not self._initialized["k"]:
-            if type(self.k) is not int:
-                raise TypeError('k must be an int')
+        if type(self.k) is not int:
+            raise TypeError('k must be an int')
 
-            if self.k > 10:
-                warnings.warn('graphlets are too big - '
-                              'computation may be slow')
-            elif self.k < 3:
-                raise TypeError('k must be bigger than 3')
+        if self.k > 10:
+            warnings.warn('graphlets are too big - '
+                          'computation may be slow')
+        elif self.k < 3:
+            raise TypeError('k must be bigger than 3')
 
-            self._initialized["k"] = True
+        sampling = self.sampling
+        k = self.k
+        if sampling is None:
+            n_samples = None
 
-        if not self._initialized["sampling"]:
-            sampling = self.sampling
-            k = self.k
-            if sampling is None:
-                n_samples = None
+            def sample_graphlets(A, k, *args):
+                return sample_graphlets_all_connected(A, k)
+        elif type(sampling) is dict:
+            if "n_samples" in sampling:
+                # Get the number of samples
+                n_samples = sampling["n_samples"]
 
-                def sample_graphlets(A, k, *args):
-                    return sample_graphlets_all_connected(A, k)
-            elif type(sampling) is dict:
-                if "n_samples" in sampling:
-                    # Get the number of samples
-                    n_samples = sampling["n_samples"]
+                # Display a warning if arguments ignored
+                args = [arg for arg in ["delta", "epsilon", "a"]
+                        if arg in sampling]
+                if len(args):
+                    warnings.warn('Number of samples defined as input, ' +
+                                  'ignoring arguments:', ', '.join(args))
 
-                    # Display a warning if arguments ignored
-                    args = [arg for arg in ["delta", "epsilon", "a"]
-                            if arg in sampling]
-                    if len(args):
-                        warnings.warn('Number of samples defined as input, ' +
-                                      'ignoring arguments:', ', '.join(args))
+                # Initialise the sample graphlets function
+                sample_graphlets = sample_graphlets_probabilistic
 
-                    # Initialise the sample graphlets function
-                    sample_graphlets = sample_graphlets_probabilistic
+            elif ("delta" in sampling or "epsilon" in sampling
+                    or "a" in sampling):
+                # Otherwise if delta exists
+                delta = sampling.get("delta", 0.05)
+                # or epsilon
+                epsilon = sampling.get("epsilon", 0.05)
+                # or a
+                a = sampling.get("a", -1)
 
-                elif ("delta" in sampling or "epsilon" in sampling
-                        or "a" in sampling):
-                    # Otherwise if delta exists
-                    delta = sampling.get("delta", 0.05)
-                    # or epsilon
-                    epsilon = sampling.get("epsilon", 0.05)
-                    # or a
-                    a = sampling.get("a", -1)
+                # check the fit constraints
+                if delta > 1 or delta < 0:
+                    raise TypeError('delta must be in the range (0,1)')
 
-                    # check the fit constraints
-                    if delta > 1 or delta < 0:
-                        raise TypeError('delta must be in the range (0,1)')
+                if epsilon > 1 or epsilon < 0:
+                    raise TypeError('epsilon must be in the range (0,1)')
 
-                    if epsilon > 1 or epsilon < 0:
-                        raise TypeError('epsilon must be in the range (0,1)')
+                if type(a) is not int:
+                    raise TypeError('a must be an integer')
+                elif a == 0:
+                    raise TypeError('a cannot be zero')
+                elif a < -1:
+                    raise TypeError('negative a smaller than -1 have '
+                                    'no meaning')
 
-                    if type(a) is not int:
-                        raise TypeError('a must be an integer')
-                    elif a == 0:
-                        raise TypeError('a cannot be zero')
-                    elif a < -1:
-                        raise TypeError('negative a smaller than -1 have '
-                                        'no meaning')
+                if(a == -1):
+                    fallback_map = {1: 1, 2: 2, 3: 4, 4: 8, 5: 19, 6: 53,
+                                    7: 209, 8: 1253, 9: 13599}
+                    if(k > 9):
+                        warnings.warn(
+                            'warning for such size number of isomorphisms '
+                            'is not known - interpolation on know values '
+                            'will be used')
+                        # Use interpolations
 
-                    if(a == -1):
-                        fallback_map = {1: 1, 2: 2, 3: 4, 4: 8, 5: 19, 6: 53,
-                                        7: 209, 8: 1253, 9: 13599}
-                        if(k > 9):
-                            warnings.warn(
-                                'warning for such size number of isomorphisms '
-                                'is not known - interpolation on know values '
-                                'will be used')
-                            # Use interpolations
+                        isomorphism_prediction = \
+                            interp1d(list(fallback_map.keys()),
+                                     list(fallback_map.values()),
+                                     kind='cubic')
+                        a = isomorphism_prediction(k)
+                    else:
+                        a = fallback_map[k]
 
-                            isomorphism_prediction = \
-                                interp1d(list(fallback_map.keys()),
-                                         list(fallback_map.values()),
-                                         kind='cubic')
-                            a = isomorphism_prediction(k)
-                        else:
-                            a = fallback_map[k]
+                # and calculate number of samples
+                n_samples = math.ceil(2*(a*np.log10(2) +
+                                      np.log10(1/delta))/(epsilon**2))
 
-                    # and calculate number of samples
-                    n_samples = math.ceil(2*(a*np.log10(2) +
-                                          np.log10(1/delta))/(epsilon**2))
-
-                    sample_graphlets = sample_graphlets_probabilistic
-                else:
-                    raise ValueError('sampling doesn\'t have a valid dictionary format')
+                sample_graphlets = sample_graphlets_probabilistic
             else:
-                raise TypeError('sampling can either be a dictionary or None')
-            self.sample_graphlets_ = sample_graphlets
-            self.k_ = k
-            self.n_samples_ = n_samples
-        self._initialized["sampling"] = True
+                raise ValueError('sampling doesn\'t have a valid dictionary format')
+        else:
+            raise TypeError('sampling can either be a dictionary or None')
+        self.sample_graphlets_ = sample_graphlets
+        self.k_ = k
+        self.n_samples_ = n_samples
 
     def transform(self, X):
         """Calculate the kernel matrix, between given and fitted dataset.

@@ -82,51 +82,37 @@ class MultiscaleLaplacian(Kernel):
         self.L = L
         self.P = P
         self.n_samples = n_samples
-        self._initialized.update({"random_state": False, "gamma": False,
-                                  "heta": False, "L": False, "n_samples": False, "P": False})
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         super(MultiscaleLaplacian, self).initialize()
 
-        if not self._initialized["random_state"]:
-            self.random_state_ = check_random_state(self.random_state)
-            self._initialized["random_state"] = True
+        self.random_state_ = check_random_state(self.random_state)
 
-        if not self._initialized["gamma"]:
-            if not isinstance(self.gamma, Real):
-                raise TypeError('gamma must be a real number')
-            elif self.gamma == .0:
-                warnings.warn('with zero gamma the calculation may crash')
-            elif self.gamma < 0:
-                raise TypeError('gamma must be positive')
-            self._initialized["gamma"] = True
+        if not isinstance(self.gamma, Real):
+            raise TypeError('gamma must be a real number')
+        elif self.gamma == .0:
+            warnings.warn('with zero gamma the calculation may crash')
+        elif self.gamma < 0:
+            raise TypeError('gamma must be positive')
 
-        if not self._initialized["heta"]:
-            if not isinstance(self.heta, Real):
-                raise TypeError('heta must be a real number')
-            elif self.heta == .0:
-                warnings.warn('with zero heta the calculation may crash')
-            elif self.heta < 0:
-                raise TypeError('heta must be positive')
-            self._initialized["heta"] = True
+        if not isinstance(self.heta, Real):
+            raise TypeError('heta must be a real number')
+        elif self.heta == .0:
+            warnings.warn('with zero heta the calculation may crash')
+        elif self.heta < 0:
+            raise TypeError('heta must be positive')
 
-        if not self._initialized["L"]:
-            if type(self.L) is not int:
-                raise TypeError('L must be an integer')
-            elif self.L < 0:
-                raise TypeError('L must be positive')
-            self._initialized["L"] = True
+        if type(self.L) is not int:
+            raise TypeError('L must be an integer')
+        elif self.L < 0:
+            raise TypeError('L must be positive')
 
-        if not self._initialized["n_samples"]:
-            if type(self.n_samples) is not int or self.n_samples <= 0:
-                raise TypeError('n_samples must be a positive integer')
-            self._initialized["n_samples"] = True
+        if type(self.n_samples) is not int or self.n_samples <= 0:
+            raise TypeError('n_samples must be a positive integer')
 
-        if not self._initialized["P"]:
-            if type(self.P) is not int or self.P <= 0:
-                raise TypeError('P must be a positive integer')
-            self._initialized["P"] = True
+        if type(self.P) is not int or self.P <= 0:
+            raise TypeError('P must be a positive integer')
 
     def parse_input(self, X):
         """Fast ML Graph Kernel.

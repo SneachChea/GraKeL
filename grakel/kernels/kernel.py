@@ -1,9 +1,7 @@
 """The main class file representing a kernel."""
 # Author: Ioannis Siglidis <y.siglidis@gmail.com>
 # License: BSD 3 clause
-import collections
 import warnings
-import copy
 
 import numpy as np
 import joblib
@@ -81,7 +79,6 @@ class Kernel(BaseEstimator, TransformerMixin):
         self.verbose = verbose
         self.n_jobs = n_jobs
         self.normalize = normalize
-        self._initialized = dict(n_jobs=False)
 
     def fit(self, X, y=None):
         """Fit a dataset, for a transformer.
@@ -232,6 +229,20 @@ class Kernel(BaseEstimator, TransformerMixin):
                     'can see. Either drop them or pass normalize=False.',
                     RuntimeWarning)
                 break
+
+    def _normalize(self, km, X_diag, Y_diag=None):
+        """Normalize a kernel matrix with the given diagonals.
+
+        NaN and infinite values produced by a zero self similarity
+        are turned into zeros.
+
+        """
+        if Y_diag is None:
+            Y_diag = X_diag
+        old_settings = np.seterr(divide="ignore")
+        km = np.nan_to_num(np.divide(km, np.sqrt(np.outer(Y_diag, X_diag))))
+        np.seterr(**old_settings)
+        return km
 
     def _calculate_kernel_matrix(self, Y=None):
         """Calculate the kernel matrix given a target_graph and a kernel.
@@ -385,18 +396,16 @@ class Kernel(BaseEstimator, TransformerMixin):
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialisation."""
-        if not self._initialized["n_jobs"]:
-            if type(self.n_jobs) is not int and self.n_jobs is not None:
-                raise ValueError('n_jobs parameter must be an int '
-                                 'indicating the number of jobs as in joblib or None')
-            elif self.n_jobs is None:
-                self._parallel = None
-            else:
-                self._parallel = joblib.Parallel(n_jobs=self.n_jobs,
-                                                 backend="threading",
-                                                 pre_dispatch='all')
-                self._n_jobs = self._parallel._effective_n_jobs()
-            self._initialized["n_jobs"] = True
+        if type(self.n_jobs) is not int and self.n_jobs is not None:
+            raise ValueError('n_jobs parameter must be an int '
+                             'indicating the number of jobs as in joblib or None')
+        elif self.n_jobs is None:
+            self._parallel = None
+        else:
+            self._parallel = joblib.Parallel(n_jobs=self.n_jobs,
+                                             backend="threading",
+                                             pre_dispatch='all')
+            self._n_jobs = self._parallel._effective_n_jobs()
 
     def pairwise_operation(self, x, y):
         """Calculate a pairwise kernel between two elements.
@@ -414,29 +423,9 @@ class Kernel(BaseEstimator, TransformerMixin):
         """
         raise NotImplementedError('Pairwise operation is not implemented!')
 
-    def set_params(self, **params):
-        """Call the parent method."""
-        if len(self._initialized):
-            # Copy the parameters
-            params = copy.deepcopy(params)
-
-            # Iterate over the parameters
-            for key, value in params.items():
-                key, delim, sub_key = key.partition('__')
-                if delim:
-                    if sub_key in self._initialized:
-                        self._initialized[sub_key] = False
-                elif key in self._initialized:
-                    self._initialized[key] = False
-
-        # Set parameters
-        super(Kernel, self).set_params(**params)
-
 
 def indexes(n_jobs, nsamples):
     """Distribute samples accross n_jobs."""
-    n_jobs = n_jobs
-
     if n_jobs >= nsamples:
         for i in range(nsamples):
             yield (i, i+1)

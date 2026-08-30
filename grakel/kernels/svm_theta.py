@@ -67,38 +67,28 @@ class SvmTheta(Kernel):
         self.subsets_size_range = subsets_size_range
         self.metric = metric
         self.random_state = random_state
-        self._initialized.update({"n_samples": False, "subsets_size_range": False,
-                                  "metric": False, "random_state": False})
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         super(SvmTheta, self).initialize()
-        if not self._initialized["n_samples"]:
-            if self.n_samples <= 0 or type(self.n_samples) is not int:
-                raise TypeError('n_samples must an integer be bigger '
-                                'than zero')
-            self._initialized["n_samples"] = True
+        if self.n_samples <= 0 or type(self.n_samples) is not int:
+            raise TypeError('n_samples must an integer be bigger '
+                            'than zero')
 
-        if not self._initialized["subsets_size_range"]:
-            if (type(self.subsets_size_range) is not tuple
-                    or len(self.subsets_size_range) != 2
-                    or any(type(i) is not int for i in self.subsets_size_range)
-                    or self.subsets_size_range[0] > self.subsets_size_range[1]
-                    or self.subsets_size_range[0] <= 0):
-                raise TypeError('subsets_size_range subset size range'
-                                'must be a tuple of two integers in '
-                                'increasing order, bigger than 1')
-            self._initialized["subsets_size_range"] = True
+        if (type(self.subsets_size_range) is not tuple
+                or len(self.subsets_size_range) != 2
+                or any(type(i) is not int for i in self.subsets_size_range)
+                or self.subsets_size_range[0] > self.subsets_size_range[1]
+                or self.subsets_size_range[0] <= 0):
+            raise TypeError('subsets_size_range subset size range'
+                            'must be a tuple of two integers in '
+                            'increasing order, bigger than 1')
 
-        if not self._initialized["metric"]:
-            if not callable(self.metric):
-                raise TypeError('metric between arguments' +
-                                'must be a function')
-            self._initialized["metric"] = True
+        if not callable(self.metric):
+            raise TypeError('metric between arguments' +
+                            'must be a function')
 
-        if not self._initialized["random_state"]:
-            self.random_state_ = check_random_state(self.random_state)
-            self._initialized["random_state"] = True
+        self.random_state_ = check_random_state(self.random_state)
 
     def parse_input(self, X):
         """Parse and create features for svm_theta kernel.

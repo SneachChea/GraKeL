@@ -55,21 +55,16 @@ class OddSth(Kernel):
         """Initialise an `odd_sth` kernel."""
         super(OddSth, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
         self.h = h
-        self._initialized.update({"h": False})
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
-        if not self._initialized["n_jobs"]:
-            if self.n_jobs is not None:
-                warnings.warn("no implemented parallelization for OddSth")
-            self._initialized["n_jobs"] = True
+        if self.n_jobs is not None:
+            warnings.warn("no implemented parallelization for OddSth")
 
-        if not self._initialized["h"]:
-            if self.h is not None and (type(self.h) is not int or self.h <= 0):
-                raise ValueError("h must be an integer bigger than zero")
+        if self.h is not None and (type(self.h) is not int or self.h <= 0):
+            raise ValueError("h must be an integer bigger than zero")
 
-            self.h_ = -1 if self.h is None else self.h
-            self._initialized["h"] = True
+        self.h_ = -1 if self.h is None else self.h
 
     def parse_input(self, X):
         """Parse and create features for the propagation kernel.
@@ -171,7 +166,6 @@ class OddSth(Kernel):
             return np.divide(km, np.sqrt(np.outer(self._X_diag, self._X_diag)))
         else:
             return km
-        return km
 
     def transform(self, X):
         """Calculate the kernel matrix, between given and fitted dataset.
@@ -282,7 +276,7 @@ def make_big_dag(g, h):
     big_dag = None
     for v in g.get_vertices(purpose="any"):
         dag_odd = make_dag_odd(v, g, h)
-        dag = tuple(hash_trees(dag_odd)) + tuple([]) + (dag_odd[1], dag_odd[3])
+        dag = tuple(hash_trees(dag_odd)) + (dag_odd[1], dag_odd[3])
         big_dag = big_dag_append(dag, big_dag)
 
     _, D_edges, D_ordering, _ = odd(big_dag[0], big_dag[2], big_dag[3])

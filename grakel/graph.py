@@ -7,11 +7,10 @@ import copy
 import numpy as np
 
 from scipy.sparse import isspmatrix
-from scipy.sparse.csgraph import laplacian
+from scipy.sparse.csgraph import laplacian, shortest_path
 
 from .tools import inv_dict
 from .tools import nested_dict_add
-from .tools import priority_dict
 
 from collections.abc import Iterable
 
@@ -665,14 +664,18 @@ class Graph:
 
             # calculate shortest path matrix
             shortest_path_mat = np.full([self.n, self.n], float("Inf"))
-            for k in indexes.keys():
-                dict_fd, _ = dijkstra(self.edge_dictionary, k)
-                for s in dict_fd.keys():
-                    shortest_path_mat[indexes[k], indexes[s]] = dict_fd[s]
+            for (u, vs) in self.edge_dictionary.items():
+                for (v, w) in vs.items():
+                    shortest_path_mat[indexes[u], indexes[v]] = w
+            np.fill_diagonal(shortest_path_mat, 0)
+            shortest_path_mat = shortest_path(shortest_path_mat, method="D")
 
         elif algorithm_type == "floyd_warshall":
             self.desired_format("adjacency", warn=True)
-            shortest_path_mat = floyd_warshall(self.adjacency_matrix)
+            adjacency_matrix = self.adjacency_matrix.astype(float)
+            adjacency_matrix[adjacency_matrix == 0] = float("Inf")
+            np.fill_diagonal(adjacency_matrix, 0)
+            shortest_path_mat = shortest_path(adjacency_matrix, method="FW")
 
         self.shortest_path_mat = shortest_path_mat
         if labels == "all":
@@ -1707,88 +1710,3 @@ def is_edge_dictionary(g, transform=False):
         return False, None
     else:
         return False
-
-
-def dijkstra(edge_dictionary, start_vertex, end_vertex=None):
-    """Calculate the dijkstra algorithm `see`_.
-
-    Parameters
-    ----------
-    edge_dictionary: dict
-        A 2-level nested dictionary of symbols, with value corresponding to
-        the weight.
-
-    start_vertex: hashable
-        The start vertex symbol
-        (should exists as a key inside edge_dictionary).
-
-    end_vertex: hashable
-        The end vertex symbol (should exists as a key inside edge_dictionary).
-
-    Returns
-    -------
-    dict_fd : dict
-        The dictionary of final distances.
-
-    dict_pred : dict
-        The dictionary of predecessors.
-
-    .. note::
-
-        The majority of this function code came from :ref:`here`_.
-
-        .. _here: http://code.activestate.com/recipes/
-            119466-dijkstras-algorithm-for-shortest-paths/
-
-    """
-    dict_fd = {}    # dictionary of final distances
-    dict_pred = {}    # dictionary of predecessors
-    queue = priority_dict()   # est.dist. of non-final vert.
-    queue[start_vertex] = 0
-
-    for v in queue:
-        dict_fd[v] = queue[v]
-        if v == end_vertex:
-            break
-
-        for w in edge_dictionary[v]:
-            vwLength = dict_fd[v] + edge_dictionary[v][w]
-            if w in dict_fd:
-                if vwLength < dict_fd[w]:
-                    raise ValueError("Dijkstra: found better path to "
-                                     "already-final vertex")
-            elif w not in queue or vwLength < queue[w]:
-                queue[w] = vwLength
-                dict_pred[w] = v
-
-    return dict_fd, dict_pred
-
-
-def floyd_warshall(adjacency_matrix):
-    """Calculate the Floyd Warshall, shortest path matrix.
-
-    Parameters
-    ----------
-    adjacency_matrix : np.array, square
-        The adjacency matrix of the graph, on which the distances are being
-        calculated.
-
-    Returns
-    -------
-    dist : np.array
-        The shortest path matrix as produced by floyd warshall
-
-    """
-    n = adjacency_matrix.shape[0]
-
-    # Initialization
-    dist = np.array(adjacency_matrix, copy=True).astype(float)
-    dist[dist == 0] = float("Inf")
-    np.fill_diagonal(dist, 0)
-
-    # Calculation
-    for k in range(n):
-        for i in range(n):
-            dist[i, :] = np.minimum(dist[i, :], dist[i, k] + dist[k, :])
-
-    return dist

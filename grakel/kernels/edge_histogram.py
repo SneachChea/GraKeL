@@ -5,22 +5,16 @@ from warnings import warn
 
 from collections import Counter
 
-from sklearn.exceptions import NotFittedError
-from sklearn.utils.validation import check_is_fitted
-
-from grakel.kernels import Kernel
-from grakel.graph import Graph
-
-from numpy import array
 from numpy import zeros
-from numpy import squeeze
-from numpy import einsum
 from scipy.sparse import csr_matrix
+
+from grakel.kernels import VertexHistogram
+from grakel.graph import Graph
 
 from collections.abc import Iterable
 
 
-class EdgeHistogram(Kernel):
+class EdgeHistogram(VertexHistogram):
     """Edge Histogram kernel as found in :cite:`sugiyama2015halting`.
 
     Parameters
@@ -36,23 +30,6 @@ class EdgeHistogram(Kernel):
     None.
 
     """
-
-    def __init__(self, n_jobs=None, normalize=False, verbose=False, sparse='auto'):
-        """Initialize an edge kernel."""
-        super(EdgeHistogram, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
-        self.sparse = sparse
-        self._initialized.update({'sparse': True})
-
-    def initialize(self):
-        """Initialize all transformer arguments, needing initialization."""
-        if not self._initialized["n_jobs"]:
-            if self.n_jobs is not None:
-                warn('no implemented parallelization for EdgeHistogram')
-            self._initialized["n_jobs"] = True
-        if not self._initialized["sparse"]:
-            if self.sparse not in ['auto', False, True]:
-                TypeError('sparse could be False, True or auto')
-            self._initialized["sparse"] = True
 
     def parse_input(self, X):
         """Parse and check the given input for EH kernel.
@@ -122,7 +99,6 @@ class EdgeHistogram(Kernel):
                     data.append(frequency)
                 ni += 1
 
-            # Initialise the feature matrix
             if self._method_calling in [1, 2]:
                 if self.sparse == 'auto':
                     self.sparse_ = (len(cols)/float(ni * len(labels)) <= 0.5)
@@ -130,7 +106,12 @@ class EdgeHistogram(Kernel):
                     self.sparse_ = bool(self.sparse)
 
             if self.sparse_:
-                features = csr_matrix((data, (rows, cols)), shape=(ni, len(labels)), copy=False)
+                features = csr_matrix(
+                    (data, (rows, cols)),
+                    shape=(ni, len(labels)),
+                    copy=False,
+                    dtype="float64",
+                )
             else:
                 # Initialise the feature matrix
                 try:
@@ -138,75 +119,13 @@ class EdgeHistogram(Kernel):
                     features[rows, cols] = data
                 except MemoryError:
                     warn('memory-error: switching to sparse')
-                    self.sparse_, features = True, csr_matrix((data, (rows, cols)), shape=(ni, len(labels)), copy=False)
+                    self.sparse_, features = True, csr_matrix(
+                        (data, (rows, cols)),
+                        shape=(ni, len(labels)),
+                        copy=False,
+                        dtype="float64",
+                    )
 
             if ni == 0:
                 raise ValueError('parsed input is empty')
             return features
-
-    def _calculate_kernel_matrix(self, Y=None):
-        """Calculate the kernel matrix given a target_graph and a kernel.
-
-        Each a matrix is calculated between all elements of Y on the rows and
-        all elements of X on the columns.
-
-        Parameters
-        ----------
-        Y : np.array, default=None
-            The array between samples and features.
-
-        Returns
-        -------
-        K : numpy array, shape = [n_targets, n_inputs]
-            The kernel matrix: a calculation between all pairs of graphs
-            between targets and inputs. If Y is None targets and inputs
-            are the taken from self.X. Otherwise Y corresponds to targets
-            and self.X to inputs.
-
-        """
-        if Y is None:
-            K = self.X.dot(self.X.T)
-        else:
-            K = Y[:, :self.X.shape[1]].dot(self.X.T)
-
-        if self.sparse_:
-            return K.toarray()
-        else:
-            return K
-
-    def diagonal(self):
-        """Calculate the kernel matrix diagonal of the fitted data.
-
-        Parameters
-        ----------
-        None.
-
-        Returns
-        -------
-        X_diag : np.array
-            The diagonal of the kernel matrix, of the fitted. This consists
-            of each element calculated with itself.
-
-
-        """
-        # Check is fit had been called
-        check_is_fitted(self, ['X', 'sparse_'])
-        try:
-            check_is_fitted(self, ['_X_diag'])
-        except NotFittedError:
-            # Calculate diagonal of X
-            if self.sparse_:
-                self._X_diag = squeeze(array(self.X.multiply(self.X).sum(axis=1)))
-            else:
-                self._X_diag = einsum('ij,ij->i', self.X, self.X)
-        try:
-            # If transform has happened return both diagonals
-            check_is_fitted(self, ['_Y'])
-            if self.sparse_:
-                Y_diag = squeeze(array(self._Y.multiply(self._Y).sum(axis=1)))
-            else:
-                Y_diag = einsum('ij,ij->i', self._Y, self._Y)
-            return self._X_diag, Y_diag
-        except NotFittedError:
-            # Else just return both X_diag
-            return self._X_diag

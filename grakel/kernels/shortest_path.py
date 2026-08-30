@@ -51,28 +51,23 @@ class ShortestPathAttr(Kernel):
 
         self.algorithm_type = algorithm_type
         self.metric = metric
-        self._initialized.update({"algorithm_type": False, "metric": False})
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         super(ShortestPathAttr, self).initialize()
-        if not self._initialized["algorithm_type"]:
-            if self.algorithm_type == "auto":
-                self._graph_format = "auto"
-            elif self.algorithm_type == "floyd_warshall":
-                self._graph_format = "adjacency"
-            elif self.algorithm_type == "dijkstra":
-                self._graph_format = "dictionary"
-            else:
-                raise ValueError('Unsupported value ' +
-                                 str(self.algorithm_type) +
-                                 ' for "algorithm_type"')
-            self._initialized["algorithm_type"] = True
+        if self.algorithm_type == "auto":
+            self._graph_format = "auto"
+        elif self.algorithm_type == "floyd_warshall":
+            self._graph_format = "adjacency"
+        elif self.algorithm_type == "dijkstra":
+            self._graph_format = "dictionary"
+        else:
+            raise ValueError('Unsupported value ' +
+                             str(self.algorithm_type) +
+                             ' for "algorithm_type"')
 
-        if not self._initialized["metric"]:
-            if not callable(self.metric):
-                raise TypeError('"metric" must be callable')
-            self._initialized["metric"] = True
+        if not callable(self.metric):
+            raise TypeError('"metric" must be callable')
 
     def parse_input(self, X):
         """Parse and create features for the `shortest_path` kernel.
@@ -232,34 +227,29 @@ class ShortestPath(Kernel):
 
         self.with_labels = with_labels
         self.algorithm_type = algorithm_type
-        self._initialized.update({"with_labels": False, "algorithm_type": False})
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
-        if not self._initialized["n_jobs"]:
-            if self.n_jobs is not None:
-                warnings.warn('no implemented parallelization for ShortestPath')
-            self._initialized["n_jobs"] = True
+        if self.n_jobs is not None:
+            warnings.warn('no implemented parallelization for ShortestPath')
 
-        if not self._initialized["algorithm_type"]:
-            if self.algorithm_type == "auto":
-                self._graph_format = "auto"
-            elif self.algorithm_type == "floyd_warshall":
-                self._graph_format = "adjacency"
-            elif self.algorithm_type == "dijkstra":
-                self._graph_format = "dictionary"
-            else:
-                raise ValueError('Unsupported "algorithm_type"')
+        if self.algorithm_type == "auto":
+            self._graph_format = "auto"
+        elif self.algorithm_type == "floyd_warshall":
+            self._graph_format = "adjacency"
+        elif self.algorithm_type == "dijkstra":
+            self._graph_format = "dictionary"
+        else:
+            raise ValueError('Unsupported "algorithm_type"')
 
-        if not self._initialized["with_labels"]:
-            if self.with_labels:
-                self._lt = "vertex"
-                self._lhash = lhash_labels
-                self._decompose_input = decompose_input_labels
-            else:
-                self._lt = "none"
-                self._lhash = lhash
-                self._decompose_input = decompose_input
+        if self.with_labels:
+            self._lt = "vertex"
+            self._lhash = lhash_labels
+            self._decompose_input = decompose_input_labels
+        else:
+            self._lt = "none"
+            self._lhash = lhash
+            self._decompose_input = decompose_input
 
     def transform(self, X):
         """Calculate the kernel matrix, between given and fitted dataset.
@@ -352,12 +342,9 @@ class ShortestPath(Kernel):
                     # Transform - calculate kernel matrix
             self._phi_X = phi_x
 
-        try:
-            check_is_fitted(self, ['X_diag'])
-        except NotFittedError:
-            # Calculate diagonal of X
-            self._X_diag = np.sum(np.square(self._phi_X), axis=1)
-            self._X_diag = np.reshape(self._X_diag, (self._X_diag.shape[0], 1))
+        # Calculate diagonal of X
+        self._X_diag = np.sum(np.square(self._phi_X), axis=1)
+        self._X_diag = np.reshape(self._X_diag, (self._X_diag.shape[0], 1))
 
         try:
             check_is_fitted(self, ['_phi_Y'])

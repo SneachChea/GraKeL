@@ -55,38 +55,28 @@ class NeighborhoodHash(Kernel):
         self.R = R
         self.nh_type = nh_type
         self.bits = bits
-        self._initialized.update({"random_state": False, "R": False, "nh_type": False,
-                                  "bits": False})
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         super(NeighborhoodHash, self).initialize()
 
-        if not self._initialized["random_state"]:
-            self.random_state_ = check_random_state(self.random_state)
-            self._initialized["random_state"] = True
+        self.random_state_ = check_random_state(self.random_state)
 
-        if not self._initialized["R"]:
-            if type(self.R) is not int or self.R <= 0:
-                raise TypeError('R must be an intger bigger than zero')
-            self._initialized["R"] = True
+        if type(self.R) is not int or self.R <= 0:
+            raise TypeError('R must be an intger bigger than zero')
 
-        if not self._initialized["nh_type"]:
-            if self.nh_type == 'simple':
-                self.NH_ = self.neighborhood_hash_simple
-            elif self.nh_type == 'count_sensitive':
-                self.NH_ = self.neighborhood_hash_count_sensitive
-            else:
-                raise TypeError('unrecognised neighborhood hashing type')
-            self._initialized["nh_type"] = True
+        if self.nh_type == 'simple':
+            self.NH_ = self.neighborhood_hash_simple
+        elif self.nh_type == 'count_sensitive':
+            self.NH_ = self.neighborhood_hash_count_sensitive
+        else:
+            raise TypeError('unrecognised neighborhood hashing type')
 
-        if not self._initialized["bits"]:
-            if type(self.bits) is not int or self.bits <= 0:
-                raise TypeError('illegal number of bits for hashing')
+        if type(self.bits) is not int or self.bits <= 0:
+            raise TypeError('illegal number of bits for hashing')
 
-            self._max_number = 1 << self.bits
-            self._mask = self._max_number-1
-            self._initialized["bits"] = True
+        self._max_number = 1 << self.bits
+        self._mask = self._max_number-1
 
     def fit(self, X, y=None):
         """Fit a dataset, for a transformer.
@@ -312,9 +302,6 @@ class NeighborhoodHash(Kernel):
                 out.append(gr)
                 i += 1
 
-                if i == 0:
-                    raise ValueError('parsed input is empty')
-
         # Transform - calculate kernel matrix
         # Output is always normalized
         km = self._calculate_kernel_matrix(out)
@@ -460,45 +447,15 @@ class NeighborhoodHash(Kernel):
             A list of labels with their counts (sorted).
 
         """
-        n = len(labels)
         result = 0
-        if n == 0:
-            return result
-
-        for b in range(self.bits):
-            # The output array elements that will have sorted arr
-            output = [0]*n
-
-            # initialize count array as 0
-            count = [0, 0]
-
-            # Store count of occurrences in count[]
-            for i in range(n):
-                count[(labels[i] >> b) % 2] += 1
-
-            # Change count[i] so that count[i] now contains actual
-            #  position of this digit in output array
-            count[1] += count[0]
-
-            # Build the output array
-            for i in range(n-1, -1, -1):
-                index = (labels[i] >> b)
-                output[count[index % 2] - 1] = labels[i]
-                count[index % 2] -= 1
-
-            # Copying the output array to arr[],
-            # so that arr now contains sorted numbers
-            labels = output
-
-        previous, occ = labels[0], 1
-        for i in range(1, len(labels)):
-            label = labels[i]
+        previous, occ = None, 0
+        for label in sorted(labels):
             if label == previous:
                 occ += 1
             else:
-                result ^= self.ROT(previous ^ occ, occ)
-                occ = 1
-            previous = label
+                if occ > 0:
+                    result ^= self.ROT(previous ^ occ, occ)
+                previous, occ = label, 1
         if occ > 0:
             result ^= self.ROT(previous ^ occ, occ)
         return result

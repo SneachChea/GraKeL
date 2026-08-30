@@ -41,18 +41,8 @@ class VertexHistogram(Kernel):
         """Initialise a vertex histogram kernel."""
         super(VertexHistogram, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
         self.sparse = sparse
-        self._initialized.update({'sparse': True})
-
-    def _initialized(self):
-        """Initialize all transformer arguments, needing initialization."""
-        if not self._initialized["n_jobs"]:
-            if self.n_jobs is not None:
-                warn('no implemented parallelization for VertexHistogram')
-            self._initialized["n_jobs"] = True
-        if not self._initialized["sparse"]:
-            if self.sparse not in ['auto', False, True]:
-                TypeError('sparse could be False, True or auto')
-            self._initialized["sparse"] = True
+        if self.sparse not in ['auto', False, True]:
+            raise TypeError('sparse could be False, True or auto')
 
     def parse_input(self, X):
         """Parse and check the given input for VH kernel.

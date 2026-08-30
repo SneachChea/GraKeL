@@ -65,59 +65,49 @@ class SubgraphMatching(Kernel):
         self.kv = kv
         self.ke = ke
         self.lw = lw
-        self._initialized.update({"k": False, "kv": False, "ke": False, "lw": False})
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         super(SubgraphMatching, self).initialize()
-        if not self._initialized["k"]:
-            if type(self.k) is not int and self.k < 1:
-                raise TypeError("k must be an integer greater-equal than 1")
-            self._initialized["k"] = True
+        if type(self.k) is not int and self.k < 1:
+            raise TypeError("k must be an integer greater-equal than 1")
 
-        if not self._initialized["kv"]:
-            if not callable(self.kv) and self.kv is not None:
-                raise TypeError("kv must be callable or None")
-            self._initialized["kv"] = True
+        if not callable(self.kv) and self.kv is not None:
+            raise TypeError("kv must be callable or None")
 
-        if not self._initialized["ke"]:
-            if not callable(self.ke) and self.ke is not None:
-                raise TypeError("ke must be callable or None")
-            self._initialized["ke"] = True
+        if not callable(self.ke) and self.ke is not None:
+            raise TypeError("ke must be callable or None")
 
-        if not self._initialized["lw"]:
-            k = self.k + 1
-            not_str_iter = type(self.lw) is not str and isinstance(self.lw, Iterable)
-            if not_str_iter:
-                lw = list(self.lw)
+        k = self.k + 1
+        not_str_iter = type(self.lw) is not str and isinstance(self.lw, Iterable)
+        if not_str_iter:
+            lw = list(self.lw)
 
-            if not_str_iter and len(lw) == self.k and all(isinstance(x, Real) for x in lw):
-                self.lambdas_ = np.array(lw).reshape((1, k))
-            elif self.lw == "uniform":
-                self.lambdas_ = np.full((1, k), 1.0)
-            elif self.lw == "increasing":
-                self.lambdas_ = np.arange(1.0, float(k) + 1.0).reshape(1, k)
-            elif self.lw == "decreasing":
-                self.lambdas_ = np.full((1, k), 1.0) / np.arange(1.0, float(k) + 1.0).reshape(1, k)
-            elif self.lw == "strong_decreasing":
-                self.lambdas_ = np.full((1, k), 1.0) / np.square(
-                    np.arange(1.0, float(k) + 1.0)
-                ).reshape(1, k)
-            elif callable(self.lw):
-                try:
-                    self.lambdas_ = np.array([self.lw(i) for i in range(k)]).reshape((1, k))
-                except Exception as e:
-                    raise TypeError("Incorrect Callable: " + str(e))
-            else:
-                raise TypeError(
-                    "lw can either be str with values "
-                    '"uniform", "increasing", "decreasing", '
-                    '"strong_decreasing" or an iterable of k+1 '
-                    "elements or a callable of one integer "
-                    "argument."
-                )
-
-            self._initialized["lw"] = True
+        if not_str_iter and len(lw) == self.k and all(isinstance(x, Real) for x in lw):
+            self.lambdas_ = np.array(lw).reshape((1, k))
+        elif self.lw == "uniform":
+            self.lambdas_ = np.full((1, k), 1.0)
+        elif self.lw == "increasing":
+            self.lambdas_ = np.arange(1.0, float(k) + 1.0).reshape(1, k)
+        elif self.lw == "decreasing":
+            self.lambdas_ = np.full((1, k), 1.0) / np.arange(1.0, float(k) + 1.0).reshape(1, k)
+        elif self.lw == "strong_decreasing":
+            self.lambdas_ = np.full((1, k), 1.0) / np.square(
+                np.arange(1.0, float(k) + 1.0)
+            ).reshape(1, k)
+        elif callable(self.lw):
+            try:
+                self.lambdas_ = np.array([self.lw(i) for i in range(k)]).reshape((1, k))
+            except Exception as e:
+                raise TypeError("Incorrect Callable: " + str(e))
+        else:
+            raise TypeError(
+                "lw can either be str with values "
+                '"uniform", "increasing", "decreasing", '
+                '"strong_decreasing" or an iterable of k+1 '
+                "elements or a callable of one integer "
+                "argument."
+            )
 
     def pairwise_operation(self, x, y):
         """Calculate the `subgraph_matching` kernel.

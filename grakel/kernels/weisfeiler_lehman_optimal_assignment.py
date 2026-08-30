@@ -59,21 +59,16 @@ class WeisfeilerLehmanOptimalAssignment(Kernel):
 
         self.n_iter = n_iter
         self.sparse = sparse
-        self._initialized.update({"n_iter": False, 'sparse': True})
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         super(WeisfeilerLehmanOptimalAssignment, self).initialize()
 
-        if not self._initialized["n_iter"]:
-            if type(self.n_iter) is not int or self.n_iter <= 0:
-                raise TypeError("'n_iter' must be a positive integer")
-            self._n_iter = self.n_iter + 1
-            self._initialized["n_iter"] = True
-        if not self._initialized["sparse"]:
-            if self.sparse not in [False, True]:
-                TypeError('sparse could be False, True')
-            self._initialized["sparse"] = False
+        if type(self.n_iter) is not int or self.n_iter <= 0:
+            raise TypeError("'n_iter' must be a positive integer")
+        self._n_iter = self.n_iter + 1
+        if self.sparse not in [False, True]:
+            TypeError('sparse could be False, True')
 
     def parse_input(self, X):
         """Parse input for weisfeiler lehman optimal assignment.
@@ -279,9 +274,7 @@ class WeisfeilerLehmanOptimalAssignment(Kernel):
 
         self._X_diag = np.diagonal(K)
         if self.normalize:
-            old_settings = np.seterr(divide='ignore')
-            K = np.nan_to_num(np.divide(K, np.sqrt(np.outer(self._X_diag, self._X_diag))))
-            np.seterr(**old_settings)
+            K = self._normalize(K, self._X_diag)
         return K
 
     def transform(self, X):
@@ -424,9 +417,7 @@ class WeisfeilerLehmanOptimalAssignment(Kernel):
         self._is_transformed = True
         if self.normalize:
             X_diag, Y_diag = self.diagonal()
-            old_settings = np.seterr(divide='ignore')
-            K = np.nan_to_num(np.divide(K, np.sqrt(np.outer(Y_diag, X_diag))))
-            np.seterr(**old_settings)
+            K = self._normalize(K, X_diag, Y_diag)
 
         return K
 
@@ -479,18 +470,3 @@ class WeisfeilerLehmanOptimalAssignment(Kernel):
             return self._X_diag, Y_diag
         else:
             return self._X_diag
-
-
-def efit(object, data):
-    """Fit an object on data."""
-    object.fit(data)
-
-
-def efit_transform(object, data):
-    """Fit-Transform an object on data."""
-    return object.fit_transform(data)
-
-
-def etransform(object, data):
-    """Transform an object on data."""
-    return object.transform(data)

@@ -18,7 +18,7 @@ from sklearn.utils import Bunch
 
 from grakel.graph import Graph
 
-global datasets_metadata, symmetric_dataset
+global symmetric_dataset
 
 dataset_metadata = {
     "AIDS": {"nl": True, "el": True, "na": True, "ea": False,

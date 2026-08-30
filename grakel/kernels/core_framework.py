@@ -47,51 +47,43 @@ class CoreFramework(Kernel):
 
         self.min_core = -1
         self.base_graph_kernel = base_graph_kernel
-        self._initialized.update({"min_core": False, "base_graph_kernel": False})
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
-        if not self._initialized["n_jobs"]:
-            if self.n_jobs is not None:
-                warnings.warn('no implemented parallelization for CoreFramework')
-            self._initialized["n_jobs"] = True
+        if self.n_jobs is not None:
+            warnings.warn('no implemented parallelization for CoreFramework')
 
-        if not self._initialized["base_graph_kernel"]:
-            base_graph_kernel = self.base_graph_kernel
-            if base_graph_kernel is None:
-                base_graph_kernel, params = ShortestPath, dict()
-            elif type(base_graph_kernel) is type and issubclass(base_graph_kernel, Kernel):
-                params = dict()
-            else:
-                try:
-                    base_graph_kernel, params = base_graph_kernel
-                except Exception:
-                    raise TypeError('Base kernel was not formulated in '
-                                    'the correct way. '
-                                    'Check documentation.')
+        base_graph_kernel = self.base_graph_kernel
+        if base_graph_kernel is None:
+            base_graph_kernel, params = ShortestPath, dict()
+        elif type(base_graph_kernel) is type and issubclass(base_graph_kernel, Kernel):
+            params = dict()
+        else:
+            try:
+                base_graph_kernel, params = base_graph_kernel
+            except Exception:
+                raise TypeError('Base kernel was not formulated in '
+                                'the correct way. '
+                                'Check documentation.')
 
-                if not (type(base_graph_kernel) is type and
-                        issubclass(base_graph_kernel, Kernel)):
-                    raise TypeError('The first argument must be a valid '
-                                    'grakel.kernel.kernel Object')
-                if type(params) is not dict:
-                    raise ValueError('If the second argument of base '
-                                     'kernel exists, it must be a diction'
-                                     'ary between parameters names and '
-                                     'values')
-                params.pop("normalize", None)
+            if not (type(base_graph_kernel) is type and
+                    issubclass(base_graph_kernel, Kernel)):
+                raise TypeError('The first argument must be a valid '
+                                'grakel.kernel.kernel Object')
+            if type(params) is not dict:
+                raise ValueError('If the second argument of base '
+                                 'kernel exists, it must be a diction'
+                                 'ary between parameters names and '
+                                 'values')
 
-            params["normalize"] = False
-            params["verbose"] = self.verbose
-            params["n_jobs"] = None
-            self.base_graph_kernel_ = base_graph_kernel
-            self.params_ = params
-            self._initialized["base_graph_kernel"] = True
+        params["normalize"] = False
+        params["verbose"] = self.verbose
+        params["n_jobs"] = None
+        self.base_graph_kernel_ = base_graph_kernel
+        self.params_ = params
 
-        if not self._initialized["min_core"]:
-            if type(self.min_core) is not int or self.min_core < -1:
-                raise TypeError("'min_core' must be an integer bigger than -1")
-            self._initialized["min_core"] = True
+        if type(self.min_core) is not int or self.min_core < -1:
+            raise TypeError("'min_core' must be an integer bigger than -1")
 
     def parse_input(self, X):
         """Parse input and create features, while initializing and/or calculating sub-kernels.
@@ -265,10 +257,7 @@ class CoreFramework(Kernel):
         self._is_transformed = True
         if self.normalize:
             X_diag, Y_diag = self.diagonal()
-            old_settings = np.seterr(divide='ignore')
-            km /= np.sqrt(np.outer(Y_diag, X_diag))
-            km = np.nan_to_num(km)
-            np.seterr(**old_settings)
+            km = self._normalize(km, X_diag, Y_diag)
 
         return km
 
@@ -306,9 +295,7 @@ class CoreFramework(Kernel):
 
         self._X_diag = np.diagonal(km)
         if self.normalize:
-            old_settings = np.seterr(divide='ignore')
-            km = np.nan_to_num(np.divide(km, np.sqrt(np.outer(self._X_diag, self._X_diag))))
-            np.seterr(**old_settings)
+            km = self._normalize(km, self._X_diag)
         return km
 
     def diagonal(self):
@@ -416,142 +403,3 @@ def core_number(G):
                 bin_boundaries[core[u]] += 1
                 core[u] -= 1
     return core
-
-
-if __name__ == '__main__':
-    from grakel.datasets import fetch_dataset
-    import argparse
-    # Create an argument parser for the installer of pynauty
-    parser = argparse.ArgumentParser(
-        description='Measuring classification accuracy '
-                    ' on multiscale_laplacian_fast')
-
-    parser.add_argument(
-        '--dataset',
-        help='choose the dataset you want the tests to be executed',
-        type=str,
-        default="MUTAG"
-    )
-
-    parser.add_argument(
-        '--full',
-        help='fit_transform the full graph',
-        action="store_true")
-
-    parser.add_argument(
-        '--mc',
-        help='the min_core kernel parameter',
-        type=int,
-        default=-1)
-
-    # Get the dataset name
-    args = parser.parse_args()
-    dataset_name = args.dataset
-    full = bool(args.full)
-    mc = int(args.mc)
-    # The baseline dataset for node/edge-attributes
-    dataset_attr = fetch_dataset(dataset_name,
-                                 with_classes=True,
-                                 produce_labels_nodes=True,
-                                 prefer_attr_nodes=False,
-                                 verbose=True)
-
-    from tqdm import tqdm
-    from time import time
-
-    from sklearn.metrics import accuracy_score
-    from sklearn.model_selection import KFold
-    from sklearn import svm
-    from grakel.kernels import WeisfeilerLehman
-    from grakel.kernels import VertexHistogram
-    # from grakel.kernels import ShortestPath
-
-    def sec_to_time(sec):
-        """Print time in a correct format."""
-        dt = list()
-        days = int(sec // 86400)
-        if days > 0:
-            sec -= 86400*days
-            dt.append(str(days) + " d")
-
-        hrs = int(sec // 3600)
-        if hrs > 0:
-            sec -= 3600*hrs
-            dt.append(str(hrs) + " h")
-
-        mins = int(sec // 60)
-        if mins > 0:
-            sec -= 60*mins
-            dt.append(str(mins) + " m")
-
-        if sec > 0:
-            dt.append(str(round(sec, 2)) + " s")
-        return " ".join(dt)
-
-    # Loads the Mutag dataset from:
-    # https://chrsmrrs.github.io/datasets/docs/datasets/
-    # the biggest collection of benchmark datasets for graph_kernels.
-    G, y = dataset_attr.data, dataset_attr.target
-    C_grid = (10. ** np.arange(-7, 7, 2) / len(G)).tolist()
-
-    stats = {"acc": list(), "time": list()}
-
-    kf = KFold(n_splits=10, random_state=42, shuffle=True)
-    niter = kf.get_n_splits(y)
-
-    for (k, (train_index, test_index)) in tqdm(enumerate(kf.split(G, y)),
-                                               total=niter):
-        # Train-test split of graph data
-        tri = train_index.tolist()
-        tei = test_index.tolist()
-
-        G_train, G_test = list(), list()
-        y_train, y_test = list(), list()
-        for (i, (g, t)) in enumerate(zip(G, y)):
-            if len(tri) and i == tri[0]:
-                G_train.append(g)
-                y_train.append(t)
-                tri.pop(0)
-            elif len(tei) and i == tei[0]:
-                G_test.append(g)
-                y_test.append(t)
-                tei.pop(0)
-
-        start = time()
-        bk = (WeisfeilerLehman, dict(base_graph_kernel=VertexHistogram))
-        # bk = (ShortestPath, dict(with_labels=False))
-        # gk = WeisfeilerLehman(normalize=True, base_graph_kernel=VertexHistogram)
-        gk = CoreFramework(normalize=True, base_graph_kernel=bk, min_core=mc)
-
-        # Calculate the kernel matrix.
-        if full:
-            K = gk.fit_transform(G)
-            K_train = K[train_index, :][:, train_index]
-            K_test = K[test_index, :][:, train_index]
-        else:
-            K_train = gk.fit_transform(G_train)
-            K_test = gk.transform(G_test)
-        end = time()
-
-        # Cross validation on C, variable
-        acc = 0
-        for c in C_grid:
-            # Initialise an SVM and fit.
-            clf = svm.SVC(kernel='precomputed', C=c)
-
-            # Fit on the train Kernel
-            clf.fit(K_train, y_train)
-
-            # Predict and test.
-            y_pred = clf.predict(K_test)
-
-            # Calculate accuracy of classification.
-            acc = max(acc, accuracy_score(y_test, y_pred))
-
-        stats["acc"].append(acc)
-        stats["time"].append(end-start)
-
-    print("Mean values of", niter, "iterations:")
-    print("Core-Framework/WL/Subtree", "> Accuracy:",
-          str(round(np.mean(stats["acc"])*100, 2)),
-          "% | Took:", sec_to_time(np.mean(stats["time"])))

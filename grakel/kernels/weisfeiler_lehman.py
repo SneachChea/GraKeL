@@ -68,51 +68,45 @@ class WeisfeilerLehman(Kernel):
 
         self.n_iter = n_iter
         self.base_graph_kernel = base_graph_kernel
-        self._initialized.update({"n_iter": False, "base_graph_kernel": False})
         self._base_graph_kernel = None
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         super(WeisfeilerLehman, self).initialize()
-        if not self._initialized["base_graph_kernel"]:
-            base_graph_kernel = self.base_graph_kernel
-            if base_graph_kernel is None:
-                base_graph_kernel, params = VertexHistogram, dict()
-            elif type(base_graph_kernel) is type and issubclass(base_graph_kernel, Kernel):
-                params = dict()
-            else:
-                try:
-                    base_graph_kernel, params = base_graph_kernel
-                except Exception:
-                    raise TypeError(
-                        "Base kernel was not formulated in the correct way. Check documentation."
-                    )
+        base_graph_kernel = self.base_graph_kernel
+        if base_graph_kernel is None:
+            base_graph_kernel, params = VertexHistogram, dict()
+        elif type(base_graph_kernel) is type and issubclass(base_graph_kernel, Kernel):
+            params = dict()
+        else:
+            try:
+                base_graph_kernel, params = base_graph_kernel
+            except Exception:
+                raise TypeError(
+                    "Base kernel was not formulated in the correct way. Check documentation."
+                )
 
-                if not (type(base_graph_kernel) is type and issubclass(base_graph_kernel, Kernel)):
-                    raise TypeError(
-                        "The first argument must be a valid grakel.kernel.kernel Object"
-                    )
-                if type(params) is not dict:
-                    raise ValueError(
-                        "If the second argument of base "
-                        "kernel exists, it must be a diction"
-                        "ary between parameters names and "
-                        "values"
-                    )
-                params.pop("normalize", None)
+            if not (type(base_graph_kernel) is type and issubclass(base_graph_kernel, Kernel)):
+                raise TypeError(
+                    "The first argument must be a valid grakel.kernel.kernel Object"
+                )
+            if type(params) is not dict:
+                raise ValueError(
+                    "If the second argument of base "
+                    "kernel exists, it must be a diction"
+                    "ary between parameters names and "
+                    "values"
+                )
 
-            params["normalize"] = False
-            params["verbose"] = self.verbose
-            params["n_jobs"] = None
-            self._base_graph_kernel = base_graph_kernel
-            self._params = params
-            self._initialized["base_graph_kernel"] = True
+        params["normalize"] = False
+        params["verbose"] = self.verbose
+        params["n_jobs"] = None
+        self._base_graph_kernel = base_graph_kernel
+        self._params = params
 
-        if not self._initialized["n_iter"]:
-            if type(self.n_iter) is not int or self.n_iter <= 0:
-                raise TypeError("'n_iter' must be a positive integer")
-            self._n_iter = self.n_iter + 1
-            self._initialized["n_iter"] = True
+        if type(self.n_iter) is not int or self.n_iter <= 0:
+            raise TypeError("'n_iter' must be a positive integer")
+        self._n_iter = self.n_iter + 1
 
     def parse_input(self, X):
         """Parse input for weisfeiler lehman.
@@ -322,9 +316,7 @@ class WeisfeilerLehman(Kernel):
 
         self._X_diag = np.diagonal(km)
         if self.normalize:
-            old_settings = np.seterr(divide="ignore")
-            km = np.nan_to_num(np.divide(km, np.sqrt(np.outer(self._X_diag, self._X_diag))))
-            np.seterr(**old_settings)
+            km = self._normalize(km, self._X_diag)
         return km
 
     def transform(self, X):
@@ -493,9 +485,7 @@ class WeisfeilerLehman(Kernel):
         self._is_transformed = True
         if self.normalize:
             X_diag, Y_diag = self.diagonal()
-            old_settings = np.seterr(divide="ignore")
-            K = np.nan_to_num(np.divide(K, np.sqrt(np.outer(Y_diag, X_diag))))
-            np.seterr(**old_settings)
+            K = self._normalize(K, X_diag, Y_diag)
 
         return K
 

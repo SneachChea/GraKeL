@@ -64,24 +64,17 @@ class NeighborhoodSubgraphPairwiseDistance(Kernel):
 
         self.r = r
         self.d = d
-        self._initialized.update({"r": False, "d": False})
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
-        if not self._initialized["n_jobs"]:
-            if self.n_jobs is not None:
-                warnings.warn('no implemented parallelization for NeighborhoodSubgraphPairwiseDistance')
-            self._initialized["n_jobs"] = True
+        if self.n_jobs is not None:
+            warnings.warn('no implemented parallelization for NeighborhoodSubgraphPairwiseDistance')
 
-        if not self._initialized["r"]:
-            if type(self.r) is not int or self.r < 0:
-                raise ValueError('r must be a positive integer')
-            self._initialized["r"] = True
+        if type(self.r) is not int or self.r < 0:
+            raise ValueError('r must be a positive integer')
 
-        if not self._initialized["d"]:
-            if type(self.d) is not int or self.d < 0:
-                raise ValueError('d must be a positive integer')
-            self._initialized["d"] = True
+        if type(self.d) is not int or self.d < 0:
+            raise ValueError('d must be a positive integer')
 
     def parse_input(self, X):
         """Parse and create features for the NSPD kernel.

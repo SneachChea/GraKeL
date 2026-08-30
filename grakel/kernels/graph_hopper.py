@@ -4,15 +4,13 @@
 # License: BSD 3 clause
 import numpy as np
 
-from collections import defaultdict
 from numbers import Real
 from warnings import warn
 
 from grakel.kernels import Kernel
 from grakel.graph import Graph
-from grakel.graph import dijkstra
 
-from itertools import filterfalse
+from scipy.sparse.csgraph import shortest_path
 from collections.abc import Iterable
 
 
@@ -46,43 +44,41 @@ class GraphHopper(Kernel):
         """Initialize an Graph Hopper kernel."""
         super(GraphHopper, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
         self.kernel_type = kernel_type
-        self._initialized.update({"kernel_type": False})
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         super(GraphHopper, self).initialize()
-        if not self._initialized["kernel_type"]:
-            if type(self.kernel_type) is str:
-                if self.kernel_type == "linear":
-                    self.metric_ = linear_kernel
-                    self.calculate_norm_ = False
-                elif self.kernel_type == "gaussian":
-                    self.metric_ = lambda x, y: gaussian_kernel(x, y, 1)
-                    self.calculate_norm_ = True
-                elif self.kernel_type == "bridge":
-                    self.metric_ = bridge_kernel
-                    self.calculate_norm_ = False
-                else:
-                    raise ValueError(
-                        'Unsupported kernel with name "' + str(self.kernel_type) + '"'
-                    )
-            elif (
-                type(self.kernel_type) is tuple
-                and len(self.kernel_type) == 2
-                and self.kernel_type[0] == "gaussian"
-                and isinstance(self.kernel_type[1], Real)
-            ):
-                self.metric_ = lambda x, y: gaussian_kernel(x, y, self.kernel_type[1])
+        if type(self.kernel_type) is str:
+            if self.kernel_type == "linear":
+                self.metric_ = linear_kernel
+                self.calculate_norm_ = False
+            elif self.kernel_type == "gaussian":
+                self.metric_ = lambda x, y: gaussian_kernel(x, y, 1)
                 self.calculate_norm_ = True
-            elif callable(self.kernel_type):
-                self.metric_ = self._kernel_type
+            elif self.kernel_type == "bridge":
+                self.metric_ = bridge_kernel
                 self.calculate_norm_ = False
             else:
-                raise TypeError(
-                    'Unrecognized "kernel_type": can either be a str '
-                    'from the supported: "linear", "gaussian", "bridge" '
-                    'or tuple ("gaussian", mu) or a callable.'
+                raise ValueError(
+                    'Unsupported kernel with name "' + str(self.kernel_type) + '"'
                 )
+        elif (
+            type(self.kernel_type) is tuple
+            and len(self.kernel_type) == 2
+            and self.kernel_type[0] == "gaussian"
+            and isinstance(self.kernel_type[1], Real)
+        ):
+            self.metric_ = lambda x, y: gaussian_kernel(x, y, self.kernel_type[1])
+            self.calculate_norm_ = True
+        elif callable(self.kernel_type):
+            self.metric_ = self._kernel_type
+            self.calculate_norm_ = False
+        else:
+            raise TypeError(
+                'Unrecognized "kernel_type": can either be a str '
+                'from the supported: "linear", "gaussian", "bridge" '
+                'or tuple ("gaussian", mu) or a callable.'
+            )
 
     def parse_input(self, X):
         """Parse and check the given input for the Graph Hopper kernel.
@@ -177,20 +173,17 @@ class GraphHopper(Kernel):
             des = np.zeros(shape=(node_nr, node_nr, max_diam), dtype=int)
             occ = np.zeros(shape=(node_nr, node_nr, max_diam), dtype=int)
 
-            # Convert adjacency matrix to dictionary
-            idx_i, idx_j = np.where(AM > 0)
-            ed = defaultdict(dict)
-            for a, b in filterfalse(lambda a: a[0] == a[1], zip(idx_i, idx_j)):
-                ed[a][b] = AM[a, b]
+            # Convert adjacency matrix to dense weighted adjacency
+            # (index space, self-loops excluded)
+            ed = np.where(AM > 0, AM, float("Inf"))
+            np.fill_diagonal(ed, 0)
 
             for j in range(node_nr):
                 A = np.zeros(shape=AM.shape)
 
                 # Single-source shortest path from node j
-                D, p = dijkstra(ed, j)
-
-                D = np.array(list(D.get(k, float("Inf")) for k in range(node_nr)))
-                p[j] = -1
+                D, p = shortest_path(ed, method="D", return_predecessors=True, indices=j)
+                p[p == -9999] = -1
 
                 # Restrict to the connected component of node j
                 conn_comp = np.where(D < float("Inf"))[0]
