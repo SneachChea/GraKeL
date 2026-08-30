@@ -20,9 +20,6 @@ from grakel.kernels._isomorphism import Graph as bGraph
 from collections.abc import Iterable
 
 
-_legacy_bliss_warning_issued = False
-
-
 def _counts_to_csr(counts, shape):
     """Build a sparse feature matrix from graphlet counts."""
     if not counts:
@@ -38,16 +35,13 @@ def _canonical_form_key(graph):
     if key_method is not None:
         return key_method()
 
-    global _legacy_bliss_warning_issued
-    if not _legacy_bliss_warning_issued:
-        warnings.warn(
-            "The Bliss extension lacks canonical_form_key; using a slower "
-            "fallback. Rebuild GraKeL with `python -m pip install -e .` "
-            "for full performance.",
-            UserWarning,
-            stacklevel=2,
-        )
-        _legacy_bliss_warning_issued = True
+    warnings.warn(
+        "The Bliss extension lacks canonical_form_key; using a slower "
+        "fallback. Rebuild GraKeL with `python -m pip install -e .` "
+        "for full performance.",
+        UserWarning,
+        stacklevel=1,
+    )
 
     canonical_labeling = graph.canonical_labeling()
     colors = [0] * len(graph._vertices)
