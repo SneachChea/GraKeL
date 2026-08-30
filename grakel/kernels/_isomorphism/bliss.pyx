@@ -256,6 +256,19 @@ class Graph:
             canlab[bliss_map_inv[index]] = image
         return canlab
 
+    def canonical_form_key(self):
+        """Return a hashable key for the colored canonical graph form."""
+        canlab = self.canonical_labeling()
+        colors = [0] * len(self._vertices)
+        edges = []
+        for name, vertex in self._vertices.items():
+            image = canlab[name]
+            colors[image] = vertex.color
+            for neighbour in vertex.edges:
+                neighbour_image = canlab[neighbour.name]
+                edges.append((image, neighbour_image))
+        return (tuple(colors), tuple(sorted(edges)))
+
     def relabel(self, lab):
         """
         Apply the argument labeling 'lab' to the graph, returning a copy of
@@ -356,4 +369,3 @@ class Graph:
 
     def isomorphic(self, g):
         return self.get_isomorphism(g) is not None
-
