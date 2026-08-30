@@ -5,7 +5,7 @@ matrices. It detects unintended behaviour changes; it does not install or run
 historical GraKeL releases.
 
     data/graphs.json              fixed corpus
-    data/specifications.json      graph split and six kernel configurations
+    data/specifications.json      graph split and seven kernel configurations
     expected/                     frozen train/test matrices and tolerances
     test_regression.py            the only test
 

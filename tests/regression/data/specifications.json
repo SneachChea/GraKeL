@@ -55,6 +55,13 @@
       }
     },
     {
+      "id": "graphlet_sampling_k4",
+      "kernel": {
+        "class": "GraphletSampling",
+        "params": {"k": 4, "sampling": null}
+      }
+    },
+    {
       "id": "nspd",
       "kernel": {
         "class": "NeighborhoodSubgraphPairwiseDistance",

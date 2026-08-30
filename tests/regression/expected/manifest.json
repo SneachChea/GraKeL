@@ -22,6 +22,10 @@
       "rtol": 1e-09,
       "atol": 1e-09
     },
+    "graphlet_sampling_k4": {
+      "rtol": 1e-09,
+      "atol": 1e-09
+    },
     "nspd": {
       "rtol": 0.05,
       "atol": 0.0001
