@@ -5,6 +5,7 @@ include uv.lock
 
 include grakel/kernels/_c_functions/*.pxd
 include grakel/kernels/_c_functions/*.pyx
+include grakel/kernels/_wl_native.pyx
 recursive-include grakel/kernels/_c_functions/include *
 recursive-include grakel/kernels/_c_functions/src *
 

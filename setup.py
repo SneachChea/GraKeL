@@ -57,6 +57,15 @@ intpybliss = Extension(
     sources=[isodir + "intpyblissmodule_3.cc"] + blisssrcs,
 )
 
+# Add the native Weisfeiler-Lehman relabelling extension
+wl_native = Extension(
+    name="grakel.kernels._wl_native",
+    sources=["./grakel/kernels/_wl_native.pyx"],
+    language="c++",
+    extra_compile_args=extra_compile_args
+    + (["-std=c++11"] if OS != "Windows" else []),
+)
+
 # Make bliss extension
 bliss = Extension(
     name="grakel.kernels._isomorphism.bliss",
@@ -68,6 +77,6 @@ bliss = Extension(
 
 setup(
     packages=find_packages(),
-    ext_modules=[intpybliss, bliss, ext],
+    ext_modules=[intpybliss, bliss, ext, wl_native],
     cmdclass={"build_ext": build_ext},
 )

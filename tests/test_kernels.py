@@ -3,7 +3,10 @@
 # License: BSD 3 clause
 import os
 import sys
+import pickle
 import numpy as np
+
+import grakel.kernels.weisfeiler_lehman as wl_module
 
 from time import time
 from warnings import warn
@@ -105,6 +108,135 @@ def test_weisfeiler_lehman_with_nspd_base_kernel():
     # the base kernel on its own returns one diagonal entry per graph
     nspd = NeighborhoodSubgraphPairwiseDistance().fit(graphs(4))
     assert np.asarray(nspd.diagonal()).shape == (4,)
+
+
+def _random_wl_graphs(seed, n=16, directed=False, unknown=4):
+    """Random labelled graphs in edge-dictionary format with string keys.
+
+    The last ``unknown`` graphs contain original labels never seen in the
+    first ``n - unknown`` ones, so transform has to handle unknown labels.
+
+    """
+    rng = np.random.RandomState(seed)
+    graphs = []
+    for i in range(n):
+        m = int(rng.randint(1, 14))
+        keys = ["node_%d_%d" % (i, 7 * j) for j in range(m)]
+        adj = {k: {} for k in keys}
+        for u in range(m):
+            for v in (range(m) if directed else range(u + 1, m)):
+                if rng.random() < 0.16:
+                    adj[keys[u]][keys[v]] = 1.0
+                    if not directed:
+                        adj[keys[v]][keys[u]] = 1.0
+        n_labels = 5 if i >= n - unknown else 3
+        labs = {k: int(rng.randint(0, n_labels)) for k in keys}
+        graphs.append([adj, labs])
+    return graphs
+
+
+def _wl_native_matches_legacy(monkeypatch, graphs, train_n, **kwargs):
+    """Run the same WL calls through the native and legacy paths."""
+    train, test = graphs[:train_n], graphs[train_n:]
+    outputs = []
+    for native in (True, False):
+        monkeypatch.setattr(wl_module, "_NATIVE", native)
+        wl = WeisfeilerLehman(**kwargs)
+        K = wl.fit_transform(train)
+        wl = WeisfeilerLehman(**kwargs)
+        wl.fit(train)
+        Kt = wl.transform(test)
+        outputs.append((K, Kt))
+    return outputs
+
+
+@pytest.mark.skipif(not wl_module._NATIVE, reason="native WL extension not built")
+@pytest.mark.parametrize("h", [1, 3, 5])
+@pytest.mark.parametrize("directed", [False, True])
+def test_weisfeiler_lehman_native_matches_legacy(monkeypatch, h, directed):
+    """Native relabelling must reproduce the legacy Gram matrices exactly."""
+    graphs = _random_wl_graphs(seed=100 * h + directed, directed=directed)
+    for normalize in (False, True):
+        kwargs = dict(n_iter=h, normalize=normalize,
+                      base_graph_kernel=VertexHistogram)
+        (Kn, Ktn), (Kl, Ktl) = _wl_native_matches_legacy(
+            monkeypatch, graphs, 10, **kwargs)
+        if normalize:
+            np.testing.assert_allclose(Kn, Kl, rtol=1e-13, atol=1e-13)
+            np.testing.assert_allclose(Ktn, Ktl, rtol=1e-13, atol=1e-13)
+        else:
+            np.testing.assert_array_equal(Kn, Kl)
+            np.testing.assert_array_equal(Ktn, Ktl)
+
+
+@pytest.mark.skipif(not wl_module._NATIVE, reason="native WL extension not built")
+def test_weisfeiler_lehman_native_transform_semantics(monkeypatch):
+    """Unknown labels, subsets, reordering, renaming, sinks: native is stable."""
+    monkeypatch.setattr(wl_module, "_NATIVE", True)
+    graphs = _random_wl_graphs(seed=7)
+    train, test = graphs[:10], graphs[10:]
+
+    wl = WeisfeilerLehman(n_iter=3, normalize=True).fit(train)
+    K_ref = wl.transform(test)
+    # subsets and reordered test batches are unaffected by earlier calls
+    np.testing.assert_allclose(wl.transform(test[:3]), K_ref[:3],
+                               rtol=1e-13, atol=1e-13)
+    np.testing.assert_allclose(wl.transform(test[::-1]), K_ref[::-1],
+                               rtol=1e-13, atol=1e-13)
+    # renaming node keys must not change the kernel
+    renamed = []
+    for adj, labs in graphs:
+        keys = list(labs)
+        mapping = {k: "renamed_" + k for k in keys}
+        renamed.append([
+            {mapping[k]: {mapping[n]: w for n, w in adj.get(k, {}).items()}
+             for k in keys},
+            {mapping[k]: labs[k] for k in keys}])
+    np.testing.assert_allclose(
+        WeisfeilerLehman(n_iter=3, normalize=True).fit_transform(renamed),
+        WeisfeilerLehman(n_iter=3, normalize=True).fit_transform(graphs),
+        rtol=1e-13, atol=1e-13)
+    # determinism across fresh fits
+    np.testing.assert_array_equal(
+        WeisfeilerLehman(n_iter=3).fit_transform(train),
+        WeisfeilerLehman(n_iter=3).fit_transform(train))
+    # pickle round-trip keeps transform results
+    wl2 = pickle.loads(pickle.dumps(wl))
+    np.testing.assert_array_equal(wl2.transform(test), K_ref)
+    # sinks, isolated vertices and self-loops behave like the legacy path
+    special = [[{0: {1: 1.}}, {0: 'a', 1: 'b', 2: 'a'}],
+               [{0: {0: 1.}}, {0: 'a'}]]
+    monkeypatch.setattr(wl_module, "_NATIVE", False)
+    legacy = WeisfeilerLehman(n_iter=5).fit_transform(special)
+    monkeypatch.setattr(wl_module, "_NATIVE", True)
+    np.testing.assert_array_equal(
+        WeisfeilerLehman(n_iter=5).fit_transform(special), legacy)
+    # an estimator fitted through the legacy path (e.g. an old pickle)
+    # can still transform after the extension becomes available
+    monkeypatch.setattr(wl_module, "_NATIVE", False)
+    wl3 = WeisfeilerLehman(n_iter=3, normalize=True).fit(train)
+    del wl3._native_relabeler  # simulate an older pickle
+    wl.fit(train)  # refit a native estimator through the legacy path
+    monkeypatch.setattr(wl_module, "_NATIVE", True)
+    np.testing.assert_array_equal(wl3.transform(test), K_ref)
+    np.testing.assert_array_equal(wl.transform(test), K_ref)
+
+
+@pytest.mark.skipif(not wl_module._NATIVE, reason="native WL extension not built")
+@pytest.mark.parametrize("base", [VertexHistogram, ShortestPath])
+def test_weisfeiler_lehman_native_njobs_and_base_kernels(monkeypatch, base):
+    """Non-default base kernels and n_jobs dispatch agree with the legacy path."""
+    graphs = _random_wl_graphs(seed=9)
+    monkeypatch.setattr(wl_module, "_NATIVE", False)
+    ref = WeisfeilerLehman(n_iter=2, base_graph_kernel=base)
+    K_ref = ref.fit_transform(graphs[:8])
+    K_test = ref.transform(graphs[8:])
+    monkeypatch.setattr(wl_module, "_NATIVE", True)
+    for n_jobs in (None, 2):
+        wl = WeisfeilerLehman(n_iter=2, base_graph_kernel=base, n_jobs=n_jobs)
+        np.testing.assert_array_equal(wl.fit_transform(graphs[:8]), K_ref)
+        np.testing.assert_array_equal(wl.transform(graphs[8:]), K_test)
+        assert (wl._native_relabeler is not None) == (base is VertexHistogram)
 
 
 if __name__ == '__main__':
