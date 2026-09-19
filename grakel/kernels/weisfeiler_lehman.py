@@ -16,6 +16,12 @@ from grakel.kernels.vertex_histogram import VertexHistogram
 
 from collections.abc import Iterable
 
+try:
+    from grakel.kernels._wl_native import Batch, Relabeler
+    _NATIVE = True
+except ImportError:
+    _NATIVE = False
+
 
 class WeisfeilerLehman(Kernel):
     """Compute the Weisfeiler Lehman Kernel.
@@ -49,7 +55,8 @@ class WeisfeilerLehman(Kernel):
         A void function that initializes a base kernel object.
 
     _inv_labels : dict
-        An inverse dictionary, used for relabeling on each iteration.
+        Inverse label dictionaries. With native subtree relabelling, only
+        depth 0 is stored here; deeper vocabularies are held natively.
 
     """
 
@@ -209,7 +216,23 @@ class WeisfeilerLehman(Kernel):
         self._inv_labels = dict()
         self._inv_labels[0] = WL_labels_inverse
 
+        # Custom base kernels may depend on the legacy numerical label IDs.
+        self._native_relabeler = (
+            Relabeler() if _NATIVE and self._base_graph_kernel is VertexHistogram else None
+        )
+
         def generate_graphs(label_count, WL_labels_inverse):
+            if self._native_relabeler is not None:
+                initial = {
+                    j: {v: WL_labels_inverse[label] for v, label in L[j].items()}
+                    for j in range(nx)
+                }
+                batch = Batch(Gs_ed, initial)
+                yield batch.graphs(Gs_ed, extras)
+                for i in range(1, self._n_iter):
+                    self._native_relabeler.step(batch, i - 1, True)
+                    yield batch.graphs(Gs_ed, extras)
+                return
             new_graphs = list()
             for j in range(nx):
                 new_labels = dict()
@@ -418,6 +441,19 @@ class WeisfeilerLehman(Kernel):
         WL_labels_inverse = {dv: idx for (idx, dv) in enumerate(sorted(list(distinct_values)), nl)}
 
         def generate_graphs(WL_labels_inverse, nl):
+            if getattr(self, "_native_relabeler", None) is not None:
+                known = self._inv_labels[0]
+                initial = {
+                    j: {v: known[label] if label in known else WL_labels_inverse[label]
+                        for v, label in L[j].items()}
+                    for j in range(nx)
+                }
+                batch = Batch(Gs_ed, initial)
+                yield batch.graphs(Gs_ed, extras)
+                for i in range(1, self._n_iter):
+                    self._native_relabeler.step(batch, i - 1, False)
+                    yield batch.graphs(Gs_ed, extras)
+                return
             # calculate the kernel matrix for the 0 iteration
             new_graphs = list()
             for j in range(nx):

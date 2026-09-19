@@ -75,6 +75,9 @@ What's New
     (`#119 <https://github.com/ysig/GraKeL/issues/119>`_). Note that it
     relabels from outgoing edges, so on directed graphs incoming edges do not
     take part.
+  + :code:`WeisfeilerLehman` with :code:`VertexHistogram` uses native
+    relabelling without changing kernel values. Other base kernels retain
+    the existing Python implementation.
   + :code:`NeighborhoodSubgraphPairwiseDistance` can be used as a base kernel
     of a framework again (`#120
     <https://github.com/ysig/GraKeL/issues/120>`_): its :code:`diagonal()`
