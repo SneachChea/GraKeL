@@ -913,23 +913,17 @@ def test_graph_hopper_pd():
 
 
 def test_graph_hopper_isolated_vertex():
-    """GraphHopper survives graphs with isolated vertices.
+    """GraphHopper survives a graph with an isolated vertex.
 
-    Two numpy >= 2 breakages hid behind isolated vertices: the single row
-    of a one-node shortest path DAG was squeezed into a 0-d array that
-    np.where refuses, and the resulting occurrence vector, a size-1
-    array, was assigned into a scalar slot. Any graph with an isolated
-    vertex crashed the kernel, and so did a graph made of isolated
-    vertices only.
+    od_vectors_dag squeezed the single row of a one-node shortest path
+    DAG into a 0-d array, which numpy >= 2 refuses to feed to np.where,
+    so any graph with an isolated vertex crashed the kernel.
     """
     train = [
         (np.array([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]]),
          {0: np.array([1.0, 0.0]), 1: np.array([0.0, 1.0]), 2: np.array([1.0, 1.0])}),
         (np.array([[0.0, 1.0], [1.0, 0.0]]),
          {0: np.array([0.5, 0.5]), 1: np.array([1.0, -1.0])}),
-        # every vertex isolated
-        (np.zeros((3, 3)),
-         {0: np.array([1.0, 0.0]), 1: np.array([0.0, 1.0]), 2: np.array([1.0, 1.0])}),
     ]
 
     gh_kernel = GraphHopper(verbose=verbose, normalize=normalize)
@@ -998,6 +992,250 @@ def test_graph_hopper_kernel_type_callable():
         assert np.allclose(gh_callable.transform(test), gh_linear.transform(test))
     except Exception as exception:
         assert False, exception
+
+
+def _enumerate_shortest_paths(adj):
+    """All shortest paths of a unit-weight graph, as tuples of vertices.
+
+    For every source, every shortest path to each reachable vertex, each
+    path counted once per multiplicity, including the trivial
+    one-vertex path of the source with itself.
+    """
+    n = adj.shape[0]
+    all_paths = []
+    for s in range(n):
+        dist = {s: 0}
+        order = [s]
+        frontier = [s]
+        while frontier:
+            nxt = []
+            for x in frontier:
+                for y in range(n):
+                    if adj[x, y] > 0 and y not in dist:
+                        dist[y] = dist[x] + 1
+                        nxt.append(y)
+            order.extend(nxt)
+            frontier = nxt
+        paths_from_s = {s: [(s,)]}
+        for t in order[1:]:
+            parents = [x for x in range(n) if adj[x, t] > 0 and dist.get(x) == dist[t] - 1]
+            paths_from_s[t] = tuple(p + (t,) for x in parents for p in paths_from_s[x])
+        for plist in paths_from_s.values():
+            all_paths.extend(plist)
+    return all_paths
+
+
+def _brute_force_graph_hopper(graphs, node_kernel):
+    """A reference GraphHopper: hop-matched pairs of shortest paths.
+
+    Sums ``node_kernel`` over all pairs of shortest paths of equal
+    discrete length, position by position. Independent of the M matrix
+    machinery used by the implementation.
+    """
+    parsed = []
+    for adj, labels in graphs:
+        values = [labels[j] for j in range(adj.shape[0])]
+        parsed.append((_enumerate_shortest_paths(adj), values))
+    K = np.zeros((len(graphs), len(graphs)))
+    for i, (P, vi) in enumerate(parsed):
+        for j, (Q, vj) in enumerate(parsed):
+            total = 0.0
+            for p in P:
+                for q in Q:
+                    if len(p) == len(q):
+                        total += sum(node_kernel(vi[a], vj[b]) for a, b in zip(p, q))
+            K[i, j] = total
+    return K
+
+
+def _issue118_node_kernel(u, v):
+    """The node kernel requested in GraKeL issue #118.
+
+    Averages a delta kernel on the discrete label with a gaussian
+    similarity on the continuous features.
+    """
+    label_u, feat_u = u
+    label_v, feat_v = v
+    return 0.5 * (float(label_u == label_v) + np.exp(-np.linalg.norm(feat_u - feat_v)))
+
+
+def _mixed_label_attribute_graphs():
+    """Small graphs whose nodes carry (discrete label, feature vector) pairs."""
+    return [
+        # a triangle with one pendant vertex, diameter 2
+        (np.array([[0.0, 1.0, 1.0, 0.0], [1.0, 0.0, 1.0, 1.0],
+                   [1.0, 1.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]]),
+         {0: ("a", np.array([1.0, 0.0])), 1: ("b", np.array([0.0, 1.0])),
+          2: ("a", np.array([1.0, 1.0])), 3: ("b", np.array([-1.0, 0.0]))}),
+        # a path of three vertices, diameter 2
+        (np.array([[0.0, 1.0, 0.0], [1.0, 0.0, 1.0], [0.0, 1.0, 0.0]]),
+         {0: ("b", np.array([0.5, 0.5])), 1: ("a", np.array([1.0, -1.0])),
+          2: ("b", np.array([0.0, 1.0]))}),
+        # two vertices plus an isolated one, diameter 1
+        (np.array([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]]),
+         {0: ("a", np.array([2.0, 2.0])), 1: ("a", np.array([1.0, 0.0])),
+          2: ("c", np.array([0.0, 0.0]))}),
+        # a single vertex
+        (np.zeros((1, 1)), {0: ("d", np.array([0.3, 0.7]))}),
+    ]
+
+
+def test_graph_hopper_node_kernel_matches_reference():
+    """A custom node kernel agrees with a brute-force path enumeration.
+
+    The reference sums the node kernel over position-matched pairs of
+    shortest paths, enumerated independently of the implementation. It
+    must reproduce the built-in linear kernel on attribute graphs (which
+    validates the reference) and the custom node kernel path with a dot
+    product node kernel (which validates the plumbing).
+    """
+    train, test = generate_dataset(n_graphs=6,
+                                   r_vertices=(3, 6),
+                                   r_connectivity=(0.3, 0.8),
+                                   r_weight_edges=(1, 1),
+                                   n_graphs_test=2,
+                                   random_state=rs,
+                                   features=('na', 2))
+
+    dot_kernel = lambda u, v: float(np.dot(u, v))  # noqa: E731
+
+    try:
+        K_linear = GraphHopper(kernel_type="linear").fit_transform(train)
+        assert np.allclose(K_linear, _brute_force_graph_hopper(train, dot_kernel))
+
+        K_custom = GraphHopper(node_kernel=dot_kernel).fit_transform(train)
+        assert np.allclose(K_custom, K_linear)
+
+        # the transform side, on graphs of diameters unseen in fit
+        K_ref = _brute_force_graph_hopper(train + test, dot_kernel)
+        gh = GraphHopper(node_kernel=dot_kernel)
+        gh.fit(train)
+        assert np.allclose(gh.transform(test), K_ref[len(train):, :len(train)])
+    except Exception as exception:
+        assert False, exception
+
+
+def test_graph_hopper_node_kernel_mixed_labels_and_attributes():
+    """The node kernel of issue #118 on graphs with labels AND attributes.
+
+    Nodes carry (discrete label, continuous feature) pairs, which no
+    built-in kernel of GraKeL can compare; the values must reach the
+    callable exactly as they were stored on the graph.
+    """
+    graphs = _mixed_label_attribute_graphs()
+
+    # the callable itself must be symmetric
+    for i, (adj, labels) in enumerate(graphs):
+        for u in labels.values():
+            for v in labels.values():
+                assert _issue118_node_kernel(u, v) == _issue118_node_kernel(v, u)
+
+    try:
+        K = GraphHopper(node_kernel=_issue118_node_kernel).fit_transform(graphs)
+        assert np.allclose(K, _brute_force_graph_hopper(graphs, _issue118_node_kernel))
+    except Exception as exception:
+        assert False, exception
+
+
+def test_graph_hopper_node_kernel_discrete_labels():
+    """A delta node kernel makes discrete labels usable in GraphHopper."""
+    graphs = [
+        (np.array([[0.0, 1.0, 1.0], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
+         {0: "a", 1: "b", 2: "a"}),
+        (np.array([[0.0, 1.0], [1.0, 0.0]]), {0: "a", 1: "a"}),
+    ]
+    delta_kernel = lambda u, v: float(u == v)  # noqa: E731
+
+    try:
+        K = GraphHopper(node_kernel=delta_kernel, normalize=normalize).fit_transform(graphs)
+        assert K.shape == (2, 2)
+        # the reference sees the same strings
+        assert np.allclose(GraphHopper(node_kernel=delta_kernel).fit_transform(graphs),
+                           _brute_force_graph_hopper(graphs, delta_kernel))
+    except Exception as exception:
+        assert False, exception
+
+
+def test_graph_hopper_node_kernel_validation():
+    """A misbehaving node kernel is reported with its node pair."""
+    graphs = _mixed_label_attribute_graphs()
+
+    # not a callable
+    with pytest.raises(TypeError, match="node_kernel"):
+        GraphHopper(node_kernel="linear").fit(graphs)
+
+    # cannot steal the place of an explicit kernel_type
+    with pytest.raises(ValueError, match="node_kernel"):
+        GraphHopper(node_kernel=_issue118_node_kernel, kernel_type="gaussian").fit(graphs)
+
+    # fit only parses the input: the callable runs on the first real
+    # computation, and every returned value is validated there
+    gh = GraphHopper(node_kernel=lambda u, v: np.array([1.0, 2.0]))
+    with pytest.raises(TypeError, match="node at position"):
+        gh.fit_transform(graphs)
+
+    gh = GraphHopper(node_kernel=lambda u, v: 1 + 2j)
+    with pytest.raises(TypeError, match="node at position"):
+        gh.fit_transform(graphs)
+
+    gh = GraphHopper(node_kernel=lambda u, v: float("nan"))
+    with pytest.raises(ValueError, match="finite"):
+        gh.fit_transform(graphs)
+
+    # a callable that raises keeps the original exception as its cause
+    def exploding(u, v):
+        raise ZeroDivisionError("boom")
+
+    gh = GraphHopper(node_kernel=exploding)
+    with pytest.raises(TypeError, match="node_kernel failed") as excinfo:
+        gh.fit_transform(graphs)
+    assert isinstance(excinfo.value.__cause__, ZeroDivisionError)
+
+
+def test_graph_hopper_node_kernel_sklearn():
+    """node_kernel behaves as a regular scikit-learn parameter."""
+    graphs = _mixed_label_attribute_graphs()
+
+    # a delta kernel on the discrete label of the (label, feature) tuples
+    def label_delta_kernel(u, v):
+        return float(u[0] == v[0])
+
+    gh = GraphHopper(node_kernel=_issue118_node_kernel, normalize=True)
+    assert "node_kernel" in gh.get_params()
+
+    # get_params/set_params round trip with a different callable
+    K_first = gh.fit_transform(graphs)
+    gh.set_params(node_kernel=label_delta_kernel)
+    gh.fit(graphs)
+    K_second = gh.transform(graphs)
+
+    fresh = GraphHopper(node_kernel=label_delta_kernel, normalize=True)
+    fresh.fit(graphs)
+    assert np.allclose(K_second, fresh.transform(graphs))
+    assert not np.allclose(K_second, K_first)
+
+    # clone keeps the callable and reproduces the same matrix
+    from sklearn.base import clone
+    K_clone = clone(gh).fit_transform(graphs)
+    assert np.allclose(K_clone, K_second)
+
+    # the generic wrapper accepts node_kernel as a kernel parameter
+    gk = GraphKernel(kernel={"name": "graph_hopper", "node_kernel": _issue118_node_kernel},
+                     verbose=verbose, normalize=normalize)
+    try:
+        K_wrapped = gk.fit_transform(graphs)
+        assert np.allclose(K_wrapped,
+                           GraphHopper(node_kernel=_issue118_node_kernel,
+                                       normalize=normalize).fit_transform(graphs))
+    except Exception as exception:
+        assert False, exception
+
+    # parallel evaluation agrees with the sequential one
+    K_jobs = GraphHopper(node_kernel=_issue118_node_kernel, n_jobs=2,
+                         normalize=normalize).fit_transform(graphs)
+    assert np.allclose(K_jobs,
+                       GraphHopper(node_kernel=_issue118_node_kernel,
+                                   normalize=normalize).fit_transform(graphs))
 
 
 def test_refit_transform_normalized():
@@ -1101,5 +1339,10 @@ if __name__ == "__main__":
     test_graph_hopper_isolated_vertex()
     test_graph_hopper_single_vertex()
     test_graph_hopper_kernel_type_callable()
+    test_graph_hopper_node_kernel_matches_reference()
+    test_graph_hopper_node_kernel_mixed_labels_and_attributes()
+    test_graph_hopper_node_kernel_discrete_labels()
+    test_graph_hopper_node_kernel_validation()
+    test_graph_hopper_node_kernel_sklearn()
     test_refit_transform_normalized()
     test_core_framework()
