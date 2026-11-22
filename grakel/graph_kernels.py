@@ -200,6 +200,10 @@ class GraphKernel(BaseEstimator, TransformerMixin):
                     + (**o**) kernel_type: [str: {'linear', 'gaussian'}] or [tuple: {('gaussian', mu)}]
                       or [function] x:[(np.array, np.array)] , y:[(np.array, np.array)] -> [number]
 
+                    + (**o**) node_kernel: [function] x:[node label value] , y:[node label value] -> [number]
+                      replaces the built-in node kernels of `kernel_type` and receives the label
+                      values exactly as they are stored on the graphs
+
                 - "weisfeiler_lehman_optimal_assignment" or "WL-OA"
                     + (**o**) "n_iter" : [int] >= 0
 

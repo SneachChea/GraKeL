@@ -16,6 +16,29 @@ Overview
 What's New
 ==========
 
+- Unreleased
+
+  + :code:`GraphHopper` accepts a custom node kernel: the new
+    :code:`node_kernel` parameter takes any callable
+    :code:`k_node(u, v) -> number` and applies it inside the weighted sum of
+    node kernels that defines the GraphHopper kernel, on the label values of
+    the two nodes exactly as they are stored on the graphs (`#118
+    <https://github.com/ysig/GraKeL/issues/118>`_). Graphs whose nodes carry
+    both a discrete label and continuous attributes can finally be compared
+    without one-hot tricks, and plain discrete labels become usable through
+    e.g. a delta kernel. The callable is validated as it runs: every value
+    it returns must be a real finite number, and a misbehaving callable is
+    reported with the node pair that produced it. A new tutorial, `Graph
+    Hopper with a Custom Node Kernel
+    <https://github.com/ysig/GraKeL/blob/master/tutorials/graph_hopper_node_kernel/graph_hopper_node_kernel.ipynb>`_,
+    walks through the node kernel requested in the issue.
+  + :code:`kernel_type=<callable>` works again in :code:`GraphHopper`: the
+    callable was read from an attribute that never existed, so the
+    documented contract always failed with :code:`AttributeError`.
+  + :code:`GraphHopper` survives graphs with isolated vertices on
+    numpy >= 2 (two separate breakages), and accepts single-vertex graphs,
+    which crashed on every numpy version.
+
 - Version **0.1.12**
 
   + A fixed-corpus numerical regression suite under :code:`tests/regression/`

@@ -5,6 +5,7 @@
 import numpy as np
 
 from collections import defaultdict
+from math import isfinite
 from numbers import Real
 from warnings import warn
 
@@ -14,6 +15,14 @@ from grakel.graph import dijkstra
 
 from itertools import filterfalse
 from collections.abc import Iterable
+
+
+def _short_repr(value, limit=60):
+    """A repr short enough to fit inside error messages."""
+    text = repr(value)
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "..."
 
 
 class GraphHopper(Kernel):
@@ -28,31 +37,97 @@ class GraphHopper(Kernel):
             + **function** can be a function that takes two tuples of np.arrays for each graph
               corresponding to the M matrix and the attribute matrix and returns a number.
 
+    node_kernel : function or None, default=None
+        A kernel ``k_node(u, v)`` between the label values of two nodes,
+        where ``u`` and ``v`` are whatever a graph stores as node labels:
+        scalars, strings, vectors, or e.g. tuples mixing a discrete label
+        with a vector of continuous attributes. When given, it replaces the
+        built-in node kernels of `kernel_type` inside the weighted sum of
+        node kernels that defines the Graph Hopper kernel, and the label
+        values are handed over to it exactly as they were stored on the
+        graph, without any numeric validation. This makes it possible to
+        compare graphs whose nodes carry both discrete labels and
+        continuous attributes, e.g.::
+
+            def node_kernel(u, v):
+                label_u, feat_u = u
+                label_v, feat_v = v
+                return 0.5 * (float(label_u == label_v)
+                              + np.exp(-np.linalg.norm(feat_u - feat_v)))
+
+            GraphHopper(node_kernel=node_kernel)
+
+        `node_kernel` takes over the default ``kernel_type='linear'`` and
+        cannot be combined with another `kernel_type`. The callable must
+        be symmetric, ``k_node(u, v) == k_node(v, u)``: GraKeL evaluates
+        it on one node pair at a time and cannot detect an asymmetric
+        one. It must return a real finite number for every pair of node
+        values; each returned value is validated and a failing one is
+        reported with the node pair that produced it. Whether the results
+        form a positive semi-definite kernel depends on the callable.
+        With ``n_jobs`` set, the callable may be invoked from several
+        threads, so it must be stateless or thread-safe.
 
     Attributes
     ----------
     metric_ : function
-        The base metric applied between features.
+        The base metric applied between features. It is None when a
+        custom `node_kernel` is used.
 
     calculate_norm_ : bool
         Defines if the norm of the attributes will be calculated
         (in order to avoid recalculation when using it with e.g. gaussian).
 
+    custom_node_kernel_ : function or None
+        The custom node kernel when `node_kernel` is given, else None.
+
     """
 
     _graph_format = "all"
 
-    def __init__(self, n_jobs=None, normalize=False, verbose=False, kernel_type="linear"):
+    def __init__(self, n_jobs=None, normalize=False, verbose=False, kernel_type="linear", *,
+                 node_kernel=None):
         """Initialize an Graph Hopper kernel."""
         super(GraphHopper, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
         self.kernel_type = kernel_type
-        self._initialized.update({"kernel_type": False})
+        self.node_kernel = node_kernel
+        self._initialized.update({"kernel_type": False, "node_kernel": False})
+
+    def fit(self, X, y=None):
+        """Fit GraphHopper and discard cached results from a previous fit."""
+        super().fit(X, y)
+        self.__dict__.pop("_X_diag", None)
+        self.__dict__.pop("_Y", None)
+        return self
+
+    def diagonal(self):
+        """Return the self-similarities of the fitted and transformed graphs."""
+        if (self.X is not None and self.custom_node_kernel_ is not None
+                and not hasattr(self, "_X_diag")):
+            # Publish the training diagonal only once all callable results
+            # have been validated. A failed transform must remain retryable.
+            self._X_diag = np.array([self.pairwise_operation(x, x) for x in self.X])
+        return super().diagonal()
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
         super(GraphHopper, self).initialize()
-        if not self._initialized["kernel_type"]:
-            if type(self.kernel_type) is str:
+        if not self._initialized["kernel_type"] or not self._initialized["node_kernel"]:
+            if self.node_kernel is not None:
+                if not callable(self.node_kernel):
+                    raise TypeError(
+                        'Unrecognized "node_kernel": a node kernel must be '
+                        "a callable that takes the label values of two "
+                        "nodes and returns a number."
+                    )
+                if type(self.kernel_type) is not str or self.kernel_type != "linear":
+                    raise ValueError(
+                        '"node_kernel" requires the default "kernel_type" ("linear").'
+                    )
+                self.custom_node_kernel_ = self.node_kernel
+                self.metric_ = None
+                self.calculate_norm_ = False
+            elif type(self.kernel_type) is str:
                 if self.kernel_type == "linear":
                     self.metric_ = linear_kernel
                     self.calculate_norm_ = False
@@ -66,6 +141,7 @@ class GraphHopper(Kernel):
                     raise ValueError(
                         'Unsupported kernel with name "' + str(self.kernel_type) + '"'
                     )
+                self.custom_node_kernel_ = None
             elif (
                 type(self.kernel_type) is tuple
                 and len(self.kernel_type) == 2
@@ -74,15 +150,19 @@ class GraphHopper(Kernel):
             ):
                 self.metric_ = lambda x, y: gaussian_kernel(x, y, self.kernel_type[1])
                 self.calculate_norm_ = True
+                self.custom_node_kernel_ = None
             elif callable(self.kernel_type):
-                self.metric_ = self._kernel_type
+                self.metric_ = self.kernel_type
                 self.calculate_norm_ = False
+                self.custom_node_kernel_ = None
             else:
                 raise TypeError(
                     'Unrecognized "kernel_type": can either be a str '
                     'from the supported: "linear", "gaussian", "bridge" '
                     'or tuple ("gaussian", mu) or a callable.'
                 )
+            self._initialized["kernel_type"] = True
+            self._initialized["node_kernel"] = True
 
     def parse_input(self, X):
         """Parse and check the given input for the Graph Hopper kernel.
@@ -138,30 +218,44 @@ class GraphHopper(Kernel):
 
                 spm, attr = g.build_shortest_path_matrix(labels="vertex")
                 nv = g.nv()
-                try:
-                    attributes = np.array([attr[j] for j in range(nv)])
-                except TypeError:
-                    raise TypeError(
-                        "All attributes of a single graph should have the same dimension."
-                    )
+                if self.custom_node_kernel_ is None:
+                    try:
+                        attributes = np.array([attr[j] for j in range(nv)])
+                    except TypeError:
+                        raise TypeError(
+                            "All attributes of a single graph should have the same dimension."
+                        )
 
-                # Discrete labels come through as scalars, which leaves a
-                # one dimensional array here and fails much further down in
-                # the kernel arithmetic with an unreadable shape mismatch.
-                if attributes.ndim != 2 or not np.issubdtype(attributes.dtype, np.number):
-                    raise TypeError(
-                        "GraphHopper needs continuous node attributes: each "
-                        "node label must be a numeric vector, giving an array "
-                        "of shape (n_nodes, n_features) per graph. Got an "
-                        "array of shape " + str(attributes.shape) + " with "
-                        "dtype " + str(attributes.dtype) + " on the graph at "
-                        "index " + str(i) + ". Datasets with discrete labels "
-                        "(MUTAG and the like) are not applicable to this "
-                        "kernel -- either fetch a dataset with node "
-                        "attributes, using prefer_attr_nodes=True, or use a "
-                        "kernel for discrete labels such as WeisfeilerLehman "
-                        "or ShortestPath."
-                    )
+                    # Discrete labels come through as scalars, which leaves a
+                    # one dimensional array here and fails much further down in
+                    # the kernel arithmetic with an unreadable shape mismatch.
+                    if attributes.ndim != 2 or not np.issubdtype(attributes.dtype, np.number):
+                        raise TypeError(
+                            "GraphHopper needs continuous node attributes: each "
+                            "node label must be a numeric vector, giving an array "
+                            "of shape (n_nodes, n_features) per graph. Got an "
+                            "array of shape " + str(attributes.shape) + " with "
+                            "dtype " + str(attributes.dtype) + " on the graph at "
+                            "index " + str(i) + ". Datasets with discrete labels "
+                            "(MUTAG and the like) are not applicable to this "
+                            "kernel -- either fetch a dataset with node "
+                            "attributes, using prefer_attr_nodes=True, or use a "
+                            "kernel for discrete labels such as WeisfeilerLehman "
+                            "or ShortestPath."
+                        )
+                else:
+                    # A custom node kernel compares the label values as they
+                    # were stored on the graph, so they are collected in
+                    # adjacency order without any numeric validation.
+                    try:
+                        attributes = [attr[j] for j in range(nv)]
+                    except KeyError:
+                        raise KeyError(
+                            "The graph at index " + str(i) + " is missing the "
+                            "label of one of its vertices: a custom node_kernel "
+                            "compares the label values of every pair of nodes, "
+                            "so every vertex must carry a label."
+                        )
                 diam.append(int(np.max(spm[spm < float("Inf")])))
                 graphs.append((g.get_adjacency_matrix(), nv, attributes))
                 ni += 1
@@ -235,8 +329,10 @@ class GraphHopper(Kernel):
                 occ_p, des_p = od_vectors_dag(A_cc, D_cc)
 
                 if des_p.shape[0] == 1 and j == 0:
-                    des[j, 0, 0] = des_p
-                    occ[j, 0, 0] = occ_p
+                    # A one-node component: numpy >= 2 refuses to assign a
+                    # size-1 array into a scalar slot, so index the value.
+                    des[j, 0, 0] = des_p[0, 0]
+                    occ[j, 0, 0] = occ_p[0, 0]
                 else:
                     # Convert back to the indices of the original graph
                     for v in range(des_p.shape[0]):
@@ -250,8 +346,10 @@ class GraphHopper(Kernel):
             M = np.zeros(shape=(node_nr, max_diam, max_diam))
             # j loops through choices of root
             for j in range(node_nr):
-                des_mat_j_root = np.squeeze(des[j, :, :])
-                occ_mat_j_root = np.squeeze(occ[j, :, :])
+                # The slice is already 2-d; squeezing it would reduce a
+                # single-vertex graph to a 0-d array that cannot be indexed.
+                des_mat_j_root = des[j, :, :]
+                occ_mat_j_root = occ[j, :, :]
                 # v loops through nodes
                 for v in range(node_nr):
                     for a in range(max_diam):
@@ -259,7 +357,7 @@ class GraphHopper(Kernel):
                             # M[v,:,:] is M[v]; a = node coordinate in path, b = path length
                             M[v, a, b] += des_mat_j_root[v, b - a] * occ_mat_j_root[v, a]
 
-            if self.calculate_norm_:
+            if self.custom_node_kernel_ is None and self.calculate_norm_:
                 out.append((M, attributes, np.sum(attributes**2, axis=1)))
             else:
                 out.append((M, attributes))
@@ -287,9 +385,78 @@ class GraphHopper(Kernel):
         elif y[0].shape[1] > m:
             yp = yp[:, :m, :][:, :, :m]
 
-        return self.metric_(
-            (xp.reshape(xp.shape[0], m_sq),) + x[1:], (yp.reshape(yp.shape[0], m_sq),) + y[1:]
-        )
+        if self.custom_node_kernel_ is None:
+            return self.metric_(
+                (xp.reshape(xp.shape[0], m_sq),) + x[1:], (yp.reshape(yp.shape[0], m_sq),) + y[1:]
+            )
+
+        # Weight of each pair of nodes: the number of times the two nodes
+        # appear at the same hop of two shortest paths of equal discrete
+        # length, as produced by the M matrices of the two graphs.
+        weights = np.dot(xp.reshape(xp.shape[0], m_sq), yp.reshape(yp.shape[0], m_sq).T)
+        kernel = 0.0
+        for i, u in enumerate(x[1]):
+            for j, v in enumerate(y[1]):
+                kernel += weights[i, j] * self._apply_node_kernel(u, v, i, j)
+        return kernel
+
+    def _apply_node_kernel(self, u, v, i, j):
+        """Apply the custom node kernel to one pair of node label values.
+
+        Parameters
+        ----------
+        u, v : object
+            The node label values, as stored on the two graphs.
+
+        i, j : int
+            The positions of the two nodes inside their graphs, reported
+            when the node kernel misbehaves.
+
+        Returns
+        -------
+        value : float
+            The node kernel value.
+
+        Raises
+        ------
+        TypeError
+            If the node kernel is not callable or does not return a real
+            number, or if it raises for the given pair.
+
+        ValueError
+            If the node kernel returns a non finite number.
+
+        """
+        try:
+            value = self.custom_node_kernel_(u, v)
+        except Exception as exception:
+            raise TypeError(
+                "node_kernel failed while comparing the node at position "
+                + str(i) + " (" + _short_repr(u) + ") with the node at "
+                "position " + str(j) + " (" + _short_repr(v) + ")."
+            ) from exception
+
+        # numpy bools do not register as numbers.Real, while plain bools do.
+        if isinstance(value, np.bool_):
+            value = bool(value)
+        if isinstance(value, Real):
+            value = float(value)
+        else:
+            raise TypeError(
+                "node_kernel must return a real number for every pair of "
+                "nodes, got " + _short_repr(value) + " of type "
+                + type(value).__name__ + " while comparing the node at "
+                "position " + str(i) + " (" + _short_repr(u) + ") with the "
+                "node at position " + str(j) + " (" + _short_repr(v) + ")."
+            )
+        if not isfinite(value):
+            raise ValueError(
+                "node_kernel must return a finite number for every pair of "
+                "nodes, got " + _short_repr(value) + " while comparing the "
+                "node at position " + str(i) + " (" + _short_repr(u) + ") "
+                "with the node at position " + str(j) + " (" + _short_repr(v) + ")."
+            )
+        return value
 
 
 def linear_kernel(x, y):
@@ -432,7 +599,7 @@ def od_vectors_dag(G, shortestpath_dists):
     des[:, 0] = np.ones(shape=(1, dag_size))
 
     for i in range(dag_size):
-        edges_starting_at_ith = np.where(np.squeeze(sortedG[i, :]) == 1)[0]
+        edges_starting_at_ith = np.where(sortedG[i, :] == 1)[0]
         occ[edges_starting_at_ith, :] = occ[edges_starting_at_ith, :] + np.tile(
             np.hstack([0, occ[i, :-1]]), (edges_starting_at_ith.shape[0], 1)
         )
@@ -441,7 +608,7 @@ def od_vectors_dag(G, shortestpath_dists):
         # edges from each node. This is easy because the vertices in the DAG
         # are depth-first ordered in the original tree; thus, we can just start
         # from the end of the DAG matrix.
-        edges_ending_at_ith_from_end = np.where(np.squeeze(sortedG[:, dag_size - i - 1]) == 1)[0]
+        edges_ending_at_ith_from_end = np.where(sortedG[:, dag_size - i - 1] == 1)[0]
         des[edges_ending_at_ith_from_end, :] = des[edges_ending_at_ith_from_end, :] + np.tile(
             np.hstack([0, des[dag_size - i - 1, :-1]]), (edges_ending_at_ith_from_end.shape[0], 1)
         )

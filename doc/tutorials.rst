@@ -21,5 +21,10 @@ This tutorial combines the Weisfeiler-Lehman Optimal Assignment kernel with an S
 
 
 `Graph Conversions <https://github.com/ysig/GraKeL/blob/master/tutorials/graph_conversions/graph_conversions.ipynb>`_
--------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------
 This tutorial shows how to convert graphs between GraKeL and NetworkX formats, and validates a full round-trip on the PTC-FM dataset, including node labels, edge labels and weights.
+
+
+`GraphHopper with a Custom Node Kernel <https://github.com/ysig/GraKeL/blob/master/tutorials/graph_hopper_node_kernel/graph_hopper_node_kernel.ipynb>`_
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+This tutorial combines a delta kernel on discrete labels with an exponential similarity on continuous attributes in GraphHopper, and shows how GraKeL reports an invalid callable result.

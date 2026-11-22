@@ -65,6 +65,16 @@ where **[**, **]** denounce the default value and the *kernel-names* and *argume
 :code:`GraphKernel` object and **base_kernel** signifies means that given input with this type of *meta-information* the behavior
 of the kernel should **only** depend on the behavior of the base kernel to this type of *meta-information*.
 
+For :code:`graph_hopper` specifically, giving the :code:`node_kernel` parameter a callable (see the
+:ref:`GraphHopper kernel page <graph_hopper>`) replaces the built-in node kernels: the callable compares the node label
+values exactly as they are stored on the graphs, whatever their type, so the node column of the table above becomes usable
+with any kind of node meta-information -- including graphs that mix discrete labels with continuous attributes, which no
+built-in node kernel can compare.
+
+.. code-block:: python
+
+    GraphKernel(kernel={"name": "graph_hopper", "node_kernel": node_kernel})
+
 .. currentmodule:: grakel
 
 .. autosummary::
