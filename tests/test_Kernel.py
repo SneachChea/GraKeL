@@ -942,6 +942,29 @@ def test_graph_hopper_isolated_vertex():
         assert False, exception
 
 
+def test_graph_hopper_single_vertex():
+    """GraphHopper accepts a graph with a single vertex.
+
+    The root slice of the occurrence and descendant matrices was squeezed
+    into a 0-d array on a single-vertex graph, which no numpy version
+    accepts to index -- the kernel always crashed on such graphs.
+    """
+    train = [
+        (np.zeros((1, 1)), {0: np.array([1.0, 0.5])}),
+        (np.array([[0.0, 1.0], [1.0, 0.0]]),
+         {0: np.array([0.5, 0.5]), 1: np.array([1.0, -1.0])}),
+    ]
+
+    gh_kernel = GraphHopper(verbose=verbose, normalize=normalize)
+
+    try:
+        gh_kernel.fit_transform(train)
+        gh_kernel.transform(train)
+        assert True
+    except Exception as exception:
+        assert False, exception
+
+
 def test_graph_hopper_kernel_type_callable():
     """A callable kernel_type follows the documented tuple contract.
 
@@ -1076,6 +1099,7 @@ if __name__ == "__main__":
     test_graph_hopper()
     test_graph_hopper_pd()
     test_graph_hopper_isolated_vertex()
+    test_graph_hopper_single_vertex()
     test_graph_hopper_kernel_type_callable()
     test_refit_transform_normalized()
     test_core_framework()

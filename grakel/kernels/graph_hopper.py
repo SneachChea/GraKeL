@@ -252,8 +252,10 @@ class GraphHopper(Kernel):
             M = np.zeros(shape=(node_nr, max_diam, max_diam))
             # j loops through choices of root
             for j in range(node_nr):
-                des_mat_j_root = np.squeeze(des[j, :, :])
-                occ_mat_j_root = np.squeeze(occ[j, :, :])
+                # The slice is already 2-d; squeezing it would reduce a
+                # single-vertex graph to a 0-d array that cannot be indexed.
+                des_mat_j_root = des[j, :, :]
+                occ_mat_j_root = occ[j, :, :]
                 # v loops through nodes
                 for v in range(node_nr):
                     for a in range(max_diam):
