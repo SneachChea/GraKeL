@@ -75,7 +75,7 @@ class GraphHopper(Kernel):
                 self.metric_ = lambda x, y: gaussian_kernel(x, y, self.kernel_type[1])
                 self.calculate_norm_ = True
             elif callable(self.kernel_type):
-                self.metric_ = self._kernel_type
+                self.metric_ = self.kernel_type
                 self.calculate_norm_ = False
             else:
                 raise TypeError(

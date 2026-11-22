@@ -912,6 +912,41 @@ def test_graph_hopper_pd():
         assert False, exception
 
 
+def test_graph_hopper_kernel_type_callable():
+    """A callable kernel_type follows the documented tuple contract.
+
+    The contract, as described in the GraphHopper docstring: a function that
+    takes two tuples of np.arrays, the flattened M matrix and the attribute
+    matrix of each graph, and returns a number. Reproducing the built-in
+    linear kernel through that contract must give the same matrix.
+    """
+    train, test = generate_dataset(n_graphs=20,
+                                   r_vertices=(5, 10),
+                                   r_connectivity=(0.4, 0.8),
+                                   r_weight_edges=(1, 1),
+                                   n_graphs_test=8,
+                                   random_state=rs,
+                                   features=('na', 3))
+
+    def linear_through_contract(x, y):
+        M_i, NA_i = x
+        M_j, NA_j = y
+        return np.dot(np.dot(M_i, M_j.T).flat, np.dot(NA_i, NA_j.T).flat)
+
+    gh_callable = GraphHopper(kernel_type=linear_through_contract,
+                              verbose=verbose, normalize=normalize)
+    gh_linear = GraphHopper(kernel_type="linear",
+                            verbose=verbose, normalize=normalize)
+
+    try:
+        K_callable = gh_callable.fit_transform(train)
+        K_linear = gh_linear.fit_transform(train)
+        assert np.allclose(K_callable, K_linear)
+        assert np.allclose(gh_callable.transform(test), gh_linear.transform(test))
+    except Exception as exception:
+        assert False, exception
+
+
 def test_core_framework():
     """Random input test for the Core kernel Framework [+ generic-wrapper]."""
     train, test = generate_dataset(n_graphs=100,
@@ -974,4 +1009,5 @@ if __name__ == "__main__":
     test_edge_histogram()
     test_graph_hopper()
     test_graph_hopper_pd()
+    test_graph_hopper_kernel_type_callable()
     test_core_framework()
