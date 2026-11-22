@@ -947,6 +947,42 @@ def test_graph_hopper_kernel_type_callable():
         assert False, exception
 
 
+def test_refit_transform_normalized():
+    """Refit clears the diagonal cached by a previous fit.
+
+    Kernel.fit used to leave _X_diag in place, so transform(normalize=True)
+    after a refit either crashed on a broadcast mismatch (different dataset
+    sizes) or silently normalized against the stale diagonal (same sizes).
+    """
+    graphs = [
+        (np.array([[0, 1], [1, 0]]), {0: "a", 1: "a"}),
+        (np.array([[0, 1], [1, 0]]), {0: "a", 1: "b"}),
+        (np.array([[0, 1], [1, 0]]), {0: "b", 1: "b"}),
+    ]
+
+    def as_fresh(train, test):
+        fresh = VertexHistogram(normalize=True)
+        fresh.fit(train)
+        return fresh.transform(test)
+
+    try:
+        # same sizes after refit: values must match a fresh estimator
+        reused = VertexHistogram(normalize=True)
+        reused.fit_transform(graphs[:2])
+        reused.fit(graphs[1:])
+        assert np.allclose(reused.transform(graphs[:2]),
+                           as_fresh(graphs[1:], graphs[:2]))
+
+        # different sizes after refit: no broadcast error
+        reused = VertexHistogram(normalize=True)
+        reused.fit_transform(graphs)
+        reused.fit(graphs[:2])
+        assert np.allclose(reused.transform(graphs[1:]),
+                           as_fresh(graphs[:2], graphs[1:]))
+    except Exception as exception:
+        assert False, exception
+
+
 def test_core_framework():
     """Random input test for the Core kernel Framework [+ generic-wrapper]."""
     train, test = generate_dataset(n_graphs=100,
@@ -1010,4 +1046,5 @@ if __name__ == "__main__":
     test_graph_hopper()
     test_graph_hopper_pd()
     test_graph_hopper_kernel_type_callable()
+    test_refit_transform_normalized()
     test_core_framework()
