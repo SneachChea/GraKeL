@@ -912,6 +912,36 @@ def test_graph_hopper_pd():
         assert False, exception
 
 
+def test_graph_hopper_isolated_vertex():
+    """GraphHopper survives graphs with isolated vertices.
+
+    Two numpy >= 2 breakages hid behind isolated vertices: the single row
+    of a one-node shortest path DAG was squeezed into a 0-d array that
+    np.where refuses, and the resulting occurrence vector, a size-1
+    array, was assigned into a scalar slot. Any graph with an isolated
+    vertex crashed the kernel, and so did a graph made of isolated
+    vertices only.
+    """
+    train = [
+        (np.array([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]]),
+         {0: np.array([1.0, 0.0]), 1: np.array([0.0, 1.0]), 2: np.array([1.0, 1.0])}),
+        (np.array([[0.0, 1.0], [1.0, 0.0]]),
+         {0: np.array([0.5, 0.5]), 1: np.array([1.0, -1.0])}),
+        # every vertex isolated
+        (np.zeros((3, 3)),
+         {0: np.array([1.0, 0.0]), 1: np.array([0.0, 1.0]), 2: np.array([1.0, 1.0])}),
+    ]
+
+    gh_kernel = GraphHopper(verbose=verbose, normalize=normalize)
+
+    try:
+        gh_kernel.fit_transform(train)
+        gh_kernel.transform(train)
+        assert True
+    except Exception as exception:
+        assert False, exception
+
+
 def test_graph_hopper_kernel_type_callable():
     """A callable kernel_type follows the documented tuple contract.
 
@@ -1045,6 +1075,7 @@ if __name__ == "__main__":
     test_edge_histogram()
     test_graph_hopper()
     test_graph_hopper_pd()
+    test_graph_hopper_isolated_vertex()
     test_graph_hopper_kernel_type_callable()
     test_refit_transform_normalized()
     test_core_framework()

@@ -235,8 +235,10 @@ class GraphHopper(Kernel):
                 occ_p, des_p = od_vectors_dag(A_cc, D_cc)
 
                 if des_p.shape[0] == 1 and j == 0:
-                    des[j, 0, 0] = des_p
-                    occ[j, 0, 0] = occ_p
+                    # A one-node component: numpy >= 2 refuses to assign a
+                    # size-1 array into a scalar slot, so index the value.
+                    des[j, 0, 0] = des_p[0, 0]
+                    occ[j, 0, 0] = occ_p[0, 0]
                 else:
                     # Convert back to the indices of the original graph
                     for v in range(des_p.shape[0]):
@@ -432,7 +434,7 @@ def od_vectors_dag(G, shortestpath_dists):
     des[:, 0] = np.ones(shape=(1, dag_size))
 
     for i in range(dag_size):
-        edges_starting_at_ith = np.where(np.squeeze(sortedG[i, :]) == 1)[0]
+        edges_starting_at_ith = np.where(sortedG[i, :] == 1)[0]
         occ[edges_starting_at_ith, :] = occ[edges_starting_at_ith, :] + np.tile(
             np.hstack([0, occ[i, :-1]]), (edges_starting_at_ith.shape[0], 1)
         )
@@ -441,7 +443,7 @@ def od_vectors_dag(G, shortestpath_dists):
         # edges from each node. This is easy because the vertices in the DAG
         # are depth-first ordered in the original tree; thus, we can just start
         # from the end of the DAG matrix.
-        edges_ending_at_ith_from_end = np.where(np.squeeze(sortedG[:, dag_size - i - 1]) == 1)[0]
+        edges_ending_at_ith_from_end = np.where(sortedG[:, dag_size - i - 1] == 1)[0]
         des[edges_ending_at_ith_from_end, :] = des[edges_ending_at_ith_from_end, :] + np.tile(
             np.hstack([0, des[dag_size - i - 1, :-1]]), (edges_ending_at_ith_from_end.shape[0], 1)
         )
