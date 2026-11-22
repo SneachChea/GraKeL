@@ -57,7 +57,35 @@ where :math:`\mathbf{M_v}` is a :math:`\delta \times \delta` matrix whose entry 
 The components of these matrices can be computed efficiently using recursive message-passing algorithms. 
 The total complexity of computing :math:`k(G,G')` is :math:`\mathcal{O}(n^2(m + \log n + d + \delta^2))` where :math:`n` is the number of vertices, :math:`m` is the number of edges and :math:`d` is the dimensionality of the node attributes (:math:`d=1` in the case of discrete node labels).
 
-The implementation of the neighborhood hash kernel can be found below
+Pluggable node kernels
+----------------------
+
+The node kernel :math:`k_n` of the decomposition above is a parameter: ``node_kernel`` takes any callable ``k_node(u, v) -> number`` and applies it inside the weighted sum, on the label values of the two nodes exactly as they are stored on the graph. This makes it possible to compare graphs whose nodes carry both a discrete label and continuous attributes, as requested in `issue #118 <https://github.com/ysig/GraKeL/issues/118>`_, without any one-hot concatenation:
+
+.. code-block:: python
+
+    def node_kernel(u, v):
+        label_u, feat_u = u
+        label_v, feat_v = v
+        return 0.5 * (float(label_u == label_v)
+                      + np.exp(-np.linalg.norm(feat_u - feat_v)))
+
+    GraphHopper(node_kernel=node_kernel)
+
+Here every node label is a tuple ``(label, features)``. When ``node_kernel`` is given it replaces the built-in node kernels selected by ``kernel_type`` (``'linear'``, ``'gaussian'``, ``'bridge'``); combining the two is an error. Without ``node_kernel`` nothing changes.
+
+The contract of the callable:
+
++ it receives the label values of two nodes, whatever the graphs store as node labels -- scalars, strings, vectors, tuples mixing a label with a vector -- and must return a real finite number for every pair;
++ it must be symmetric, :math:`k_{node}(u, v) = k_{node}(v, u)`: GraKeL evaluates it one node pair at a time and cannot detect an asymmetric callable;
++ each returned value is validated when it is produced -- a callable that returns an array, a complex number, a non-finite value, or that raises, is reported together with the node pair that produced it (fit runs no comparison, so this happens on the first ``fit_transform``/``transform``);
++ whether the resulting graph kernel is positive semi-definite depends on the callable, as does the parallel use of ``n_jobs`` on its state.
+
+Compared to the built-in variants, which evaluate all node pairs through a single matrix product, a Python callable is invoked once per node pair of every graph pair: keep it cheap for large graphs.
+
+A step-by-step walkthrough is available as the `GraphHopper node kernel tutorial <https://github.com/ysig/GraKeL/blob/master/tutorials/graph_hopper_node_kernel/graph_hopper_node_kernel.ipynb>`_.
+
+The implementation of the graph hopper kernel can be found below
 
 .. currentmodule:: grakel
 
