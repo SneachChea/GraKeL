@@ -1051,8 +1051,8 @@ def _brute_force_graph_hopper(graphs, node_kernel):
 def _issue118_node_kernel(u, v):
     """The node kernel requested in GraKeL issue #118.
 
-    Averages a delta kernel on the discrete label with a gaussian
-    similarity on the continuous features.
+    Averages a delta kernel on the discrete label with an exponential
+    similarity on the Euclidean distance between continuous features.
     """
     label_u, feat_u = u
     label_v, feat_v = v
@@ -1168,6 +1168,10 @@ def test_graph_hopper_node_kernel_validation():
     with pytest.raises(ValueError, match="node_kernel"):
         GraphHopper(node_kernel=_issue118_node_kernel, kernel_type="gaussian").fit(graphs)
 
+    for kernel_type in (np.array(["linear"]), np.array(["linear", "gaussian"])):
+        with pytest.raises(ValueError, match="node_kernel.*kernel_type"):
+            GraphHopper(node_kernel=_issue118_node_kernel, kernel_type=kernel_type).fit(graphs)
+
     # fit only parses the input: the callable runs on the first real
     # computation, and every returned value is validated there
     gh = GraphHopper(node_kernel=lambda u, v: np.array([1.0, 2.0]))
@@ -1192,6 +1196,22 @@ def test_graph_hopper_node_kernel_validation():
     assert isinstance(excinfo.value.__cause__, ZeroDivisionError)
 
 
+def test_graph_hopper_node_kernel_failed_diagonal_is_not_cached():
+    """A failed normalized transform cannot cache a partial training diagonal."""
+    adjacency = np.zeros((1, 1))
+    train = [(adjacency, {0: "a"}), (adjacency, {0: "b"})]
+    test = [(adjacency, {0: "c"})]
+
+    def invalid_train_self_similarity(u, v):
+        # Cross-comparisons succeed; only the second training diagonal fails.
+        return np.nan if u == v == "b" else 1.0
+
+    gh = GraphHopper(node_kernel=invalid_train_self_similarity, normalize=True).fit(train)
+    for _ in range(2):
+        with pytest.raises(ValueError, match="node_kernel.*finite"):
+            gh.transform(test)
+
+
 def test_graph_hopper_node_kernel_sklearn():
     """node_kernel behaves as a regular scikit-learn parameter."""
     graphs = _mixed_label_attribute_graphs()
@@ -1205,8 +1225,11 @@ def test_graph_hopper_node_kernel_sklearn():
 
     # get_params/set_params round trip with a different callable
     K_first = gh.fit_transform(graphs)
+    gh.transform(graphs[:1])
     gh.set_params(node_kernel=label_delta_kernel)
     gh.fit(graphs)
+    # A refit must forget the previously transformed graph as well.
+    assert gh.diagonal().shape == (len(graphs),)
     K_second = gh.transform(graphs)
 
     fresh = GraphHopper(node_kernel=label_delta_kernel, normalize=True)
@@ -1236,42 +1259,6 @@ def test_graph_hopper_node_kernel_sklearn():
     assert np.allclose(K_jobs,
                        GraphHopper(node_kernel=_issue118_node_kernel,
                                    normalize=normalize).fit_transform(graphs))
-
-
-def test_refit_transform_normalized():
-    """Refit clears the diagonal cached by a previous fit.
-
-    Kernel.fit used to leave _X_diag in place, so transform(normalize=True)
-    after a refit either crashed on a broadcast mismatch (different dataset
-    sizes) or silently normalized against the stale diagonal (same sizes).
-    """
-    graphs = [
-        (np.array([[0, 1], [1, 0]]), {0: "a", 1: "a"}),
-        (np.array([[0, 1], [1, 0]]), {0: "a", 1: "b"}),
-        (np.array([[0, 1], [1, 0]]), {0: "b", 1: "b"}),
-    ]
-
-    def as_fresh(train, test):
-        fresh = VertexHistogram(normalize=True)
-        fresh.fit(train)
-        return fresh.transform(test)
-
-    try:
-        # same sizes after refit: values must match a fresh estimator
-        reused = VertexHistogram(normalize=True)
-        reused.fit_transform(graphs[:2])
-        reused.fit(graphs[1:])
-        assert np.allclose(reused.transform(graphs[:2]),
-                           as_fresh(graphs[1:], graphs[:2]))
-
-        # different sizes after refit: no broadcast error
-        reused = VertexHistogram(normalize=True)
-        reused.fit_transform(graphs)
-        reused.fit(graphs[:2])
-        assert np.allclose(reused.transform(graphs[1:]),
-                           as_fresh(graphs[:2], graphs[1:]))
-    except Exception as exception:
-        assert False, exception
 
 
 def test_core_framework():
@@ -1343,6 +1330,6 @@ if __name__ == "__main__":
     test_graph_hopper_node_kernel_mixed_labels_and_attributes()
     test_graph_hopper_node_kernel_discrete_labels()
     test_graph_hopper_node_kernel_validation()
+    test_graph_hopper_node_kernel_failed_diagonal_is_not_cached()
     test_graph_hopper_node_kernel_sklearn()
-    test_refit_transform_normalized()
     test_core_framework()

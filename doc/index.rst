@@ -16,7 +16,7 @@ Overview
 What's New
 ==========
 
-- Version **0.1.13**
+- Unreleased
 
   + :code:`GraphHopper` accepts a custom node kernel: the new
     :code:`node_kernel` parameter takes any callable
@@ -35,10 +35,6 @@ What's New
   + :code:`kernel_type=<callable>` works again in :code:`GraphHopper`: the
     callable was read from an attribute that never existed, so the
     documented contract always failed with :code:`AttributeError`.
-  + Refitting a kernel no longer reuses the diagonal of the *previous* fit
-    when normalizing :code:`transform` output: the stale diagonal either
-    crashed on a dataset size mismatch or silently produced wrong values
-    when the sizes happened to match.
   + :code:`GraphHopper` survives graphs with isolated vertices on
     numpy >= 2 (two separate breakages), and accepts single-vertex graphs,
     which crashed on every numpy version.

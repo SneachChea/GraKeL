@@ -85,13 +85,29 @@ class GraphHopper(Kernel):
 
     _graph_format = "all"
 
-    def __init__(self, n_jobs=None, normalize=False, verbose=False, kernel_type="linear",
+    def __init__(self, n_jobs=None, normalize=False, verbose=False, kernel_type="linear", *,
                  node_kernel=None):
         """Initialize an Graph Hopper kernel."""
         super(GraphHopper, self).__init__(n_jobs=n_jobs, normalize=normalize, verbose=verbose)
         self.kernel_type = kernel_type
         self.node_kernel = node_kernel
         self._initialized.update({"kernel_type": False, "node_kernel": False})
+
+    def fit(self, X, y=None):
+        """Fit GraphHopper and discard cached results from a previous fit."""
+        super().fit(X, y)
+        self.__dict__.pop("_X_diag", None)
+        self.__dict__.pop("_Y", None)
+        return self
+
+    def diagonal(self):
+        """Return the self-similarities of the fitted and transformed graphs."""
+        if (self.X is not None and self.custom_node_kernel_ is not None
+                and not hasattr(self, "_X_diag")):
+            # Publish the training diagonal only once all callable results
+            # have been validated. A failed transform must remain retryable.
+            self._X_diag = np.array([self.pairwise_operation(x, x) for x in self.X])
+        return super().diagonal()
 
     def initialize(self):
         """Initialize all transformer arguments, needing initialization."""
@@ -104,12 +120,9 @@ class GraphHopper(Kernel):
                         "a callable that takes the label values of two "
                         "nodes and returns a number."
                     )
-                elif self.kernel_type != "linear":
+                if type(self.kernel_type) is not str or self.kernel_type != "linear":
                     raise ValueError(
-                        '"node_kernel" cannot be combined with '
-                        '"kernel_type": pass either a built-in kernel_type '
-                        '("linear", "gaussian", "bridge") or a custom '
-                        "node_kernel, not both."
+                        '"node_kernel" requires the default "kernel_type" ("linear").'
                     )
                 self.custom_node_kernel_ = self.node_kernel
                 self.metric_ = None

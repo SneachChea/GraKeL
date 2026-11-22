@@ -71,6 +71,10 @@ values exactly as they are stored on the graphs, whatever their type, so the nod
 with any kind of node meta-information -- including graphs that mix discrete labels with continuous attributes, which no
 built-in node kernel can compare.
 
+.. code-block:: python
+
+    GraphKernel(kernel={"name": "graph_hopper", "node_kernel": node_kernel})
+
 .. currentmodule:: grakel
 
 .. autosummary::

@@ -4,7 +4,7 @@ Graph Hopper Kernel
 ===================
 
 Given two graphs, the GraphHopper kernel compares shortest paths between pairs of vertices from the two graphs :cite:`feragen2013scalable`.
-The kernel takes into account both path lengths and the vertices encountered while ``hopping'' along shortest paths.
+The kernel takes into account both path lengths and the vertices encountered while hopping along shortest paths.
 The kernel is equivalent to a weighted sum of node kernels.
 
 
@@ -19,7 +19,7 @@ Given two vertices :math:`v,u \in V`, a path :math:`\pi` from :math:`v` to :math
     \pi = [v_1, v_2, v_3, \ldots, v_l]
 
 where :math:`v_1 = v`, :math:`v_l = u` and :math:`(v_i, v_{i+1}) \in E` for all :math:`i=1,\ldots,l-1`.
-Let :math:`\pi(i) = v_i` denote the :math:`i^{th}` vertex encountered when ``hopping'' along the path.
+Let :math:`\pi(i) = v_i` denote the :math:`i^{th}` vertex encountered when hopping along the path.
 Denote by :math:`l(\pi)` the weighted length of :math:`\pi` and by :math:`|\pi|` its discrete length, defined as the number of vertices in :math:`\pi`.
 The shortest path :math:`\pi_{ij}` from :math:`v_i` to :math:`v_j` is defined in terms of weighted length.
 The diameter :math:`\delta(G)` of :math:`G` is the maximal number of nodes in a shortest path in :math:`G`, with respect to weighted path length.
@@ -72,7 +72,14 @@ The node kernel :math:`k_n` of the decomposition above is a parameter: ``node_ke
 
     GraphHopper(node_kernel=node_kernel)
 
-Here every node label is a tuple ``(label, features)``. When ``node_kernel`` is given it replaces the built-in node kernels selected by ``kernel_type`` (``'linear'``, ``'gaussian'``, ``'bridge'``); combining the two is an error. Without ``node_kernel`` nothing changes.
+Here every node label is a tuple ``(label, features)``. The example averages
+a label equality check and the exponential of the negative Euclidean
+distance between feature vectors. Unlike this example, the built-in
+``'gaussian'`` kernel uses the squared distance.
+
+With ``node_kernel``, leave ``kernel_type`` at its default (``'linear'``).
+Any non-default ``kernel_type`` is an error. Without ``node_kernel``, the
+existing ``kernel_type`` options are unchanged.
 
 The contract of the callable:
 
